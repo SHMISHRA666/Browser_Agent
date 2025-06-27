@@ -1,0 +1,292 @@
+{
+  "context": {
+    "session_id": "cd7ee89c-c895-4d52-8248-d268747e96a4",
+    "original_query": "Query 1: open google.com in a new tab",
+    "globals": {
+      "memory": [
+        {
+          "score": 100.0,
+          "session_id": "2b816f17-57cc-4d75-9942-c3bdbed7f788",
+          "original_query": "Query 1: open google.com in a new tab",
+          "summary_output": "The attempt to open Google.com in a new tab resulted in the following error: \"Error executing tool 'done': 1 validation error for DoneAction text Field required\". The browser automation process completed 2 steps before encountering this issue.",
+          "timestamp": "2025-06-27T19:25:40+00:00Z"
+        },
+        {
+          "score": 94.73684210526315,
+          "session_id": "4a4df010-38ee-4a33-8936-60a800c5dcee",
+          "original_query": "Query 1: open www.google.com in a new tab",
+          "summary_output": "The attempt to open www.google.com in a new tab resulted in an error: \"Error executing tool 'done': 1 validation error for DoneAction text Field required\". The browser automation process completed 2 steps before encountering this issue. Previous attempts to open Google.com in a new tab also resulted in similar errors. For more information on the error, visit https://errors.pydantic.dev/2.11/v/missing.",
+          "timestamp": "2025-06-27T19:37:00+00:00Z"
+        },
+        {
+          "score": 63.63636363636363,
+          "session_id": "e8dbc0b2-9b23-4833-a983-2c7e500ccb3d",
+          "original_query": "Query 1: open www.google.com",
+          "summary_output": "The attempt to open www.google.com in a browser resulted in the error: \"BrowserContext.new_page: Target page, context or browser has been closed\". The browser automation process completed 6 steps before encountering this issue.",
+          "timestamp": "2025-06-27T18:24:28+00:00Z"
+        }
+      ],
+      "browser_result": {
+        "status": "completed",
+        "result": "Opened google.com in a new tab.",
+        "steps_completed": 2,
+        "steps_failed": 0,
+        "total_steps": 2
+      },
+      "browser_status": "completed",
+      "browser_steps_completed": 2,
+      "browser_final_result": "Opened google.com in a new tab."
+    },
+    "memory": [
+      {
+        "original_query": "Query 1: open google.com in a new tab",
+        "result_requirement": "Final summary",
+        "summarizer_summary": "Google.com has been opened in a new tab. The browser automation process completed 2 steps.",
+        "confidence": 0.95,
+        "original_goal_achieved": true,
+        "route": "summarize"
+      }
+    ],
+    "graph": {
+      "directed": true,
+      "multigraph": false,
+      "graph": {},
+      "nodes": [
+        {
+          "data": {
+            "index": "ROOT",
+            "description": "initial query",
+            "type": "ROOT",
+            "status": "completed",
+            "result": null,
+            "conclusion": null,
+            "error": null,
+            "perception": {
+              "entities": [
+                "google.com",
+                "new tab"
+              ],
+              "result_requirement": "Open google.com in a new tab in a browser",
+              "original_goal_achieved": false,
+              "local_goal_achieved": false,
+              "confidence": "0.95",
+              "reasoning": "The query requires browser automation to open a website in a new tab. This falls under the browser automation detection guidelines.",
+              "local_reasoning": "No local data can satisfy this request; it requires browser interaction.",
+              "last_tooluse_summary": "No tools used yet",
+              "solution_summary": "Browser automation required to open google.com in a new tab.",
+              "route": "browser",
+              "instruction_to_summarize": "Not applicable for browser automation"
+            },
+            "from_step": null
+          },
+          "id": "ROOT"
+        },
+        {
+          "data": {
+            "index": "BROWSER_AGENT",
+            "description": "Browser automation: Query 1: open google.com in a new tab",
+            "type": "CODE",
+            "status": "completed",
+            "result": null,
+            "conclusion": null,
+            "error": null,
+            "perception": {
+              "entities": [
+                "google.com",
+                "new tab"
+              ],
+              "result_requirement": "Open google.com in a new tab in a browser",
+              "original_goal_achieved": true,
+              "reasoning": "Browser automation completed with status: completed",
+              "local_goal_achieved": true,
+              "local_reasoning": "Browser agent executed 2 steps",
+              "last_tooluse_summary": "BrowserAgent executed 2 steps",
+              "solution_summary": "Opened google.com in a new tab.",
+              "confidence": "0.9",
+              "route": "summarize"
+            },
+            "from_step": "ROOT"
+          },
+          "id": "BROWSER_AGENT"
+        }
+      ],
+      "links": [
+        {
+          "type": "normal",
+          "source": "ROOT",
+          "target": "BROWSER_AGENT"
+        }
+      ]
+    }
+  },
+  "session": {
+    "session_id": "cd7ee89c-c895-4d52-8248-d268747e96a4",
+    "original_query": "Query 1: open google.com in a new tab",
+    "perception_snapshots": [
+      {
+        "run_id": "cd7ee89c-c895-4d52-8248-d268747e96a4-P",
+        "snapshot_type": "user_query",
+        "entities": [
+          "google.com",
+          "new tab"
+        ],
+        "result_requirement": "Open google.com in a new tab in a browser",
+        "original_goal_achieved": false,
+        "reasoning": "The query requires browser automation to open a website in a new tab. This falls under the browser automation detection guidelines.",
+        "local_goal_achieved": false,
+        "local_reasoning": "No local data can satisfy this request; it requires browser interaction.",
+        "last_tooluse_summary": "No tools used yet",
+        "solution_summary": "Browser automation required to open google.com in a new tab.",
+        "confidence": "0.95",
+        "route": "browser",
+        "timestamp": "...",
+        "return_to": ""
+      }
+    ],
+    "decision_snapshots": [],
+    "execution_snapshots": [],
+    "summarizer_snapshots": [
+      {
+        "run_id": "4c345cf4-d7e9-4de9-9ec3-09fb9fc94b6a",
+        "input": {
+          "original_query": "Query 1: open google.com in a new tab",
+          "globals_schema": {
+            "memory": [
+              {
+                "score": 100.0,
+                "session_id": "2b816f17-57cc-4d75-9942-c3bdbed7f788",
+                "original_query": "Query 1: open google.com in a new tab",
+                "summary_output": "The attempt to open Google.com in a new tab resulted in the following error: \"Error executing tool 'done': 1 validation error for DoneAction text Field required\". The browser automation process completed 2 steps before encountering this issue.",
+                "timestamp": "2025-06-27T19:25:40+00:00Z"
+              },
+              {
+                "score": 94.73684210526315,
+                "session_id": "4a4df010-38ee-4a33-8936-60a800c5dcee",
+                "original_query": "Query 1: open www.google.com in a new tab",
+                "summary_output": "The attempt to open www.google.com in a new tab resulted in an error: \"Error executing tool 'done': 1 validation error for DoneAction text Field required\". The browser automation process completed 2 steps before encountering this issue. Previous attempts to open Google.com in a new tab also resulted in similar errors. For more information on the error, visit https://errors.pydantic.dev/2.11/v/missing.",
+                "timestamp": "2025-06-27T19:37:00+00:00Z"
+              },
+              {
+                "score": 63.63636363636363,
+                "session_id": "e8dbc0b2-9b23-4833-a983-2c7e500ccb3d",
+                "original_query": "Query 1: open www.google.com",
+                "summary_output": "The attempt to open www.google.com in a browser resulted in the error: \"BrowserContext.new_page: Target page, context or browser has been closed\". The browser automation process completed 6 steps before encountering this issue.",
+                "timestamp": "2025-06-27T18:24:28+00:00Z"
+              }
+            ],
+            "browser_result": {
+              "status": "completed",
+              "result": "Opened google.com in a new tab.",
+              "steps_completed": 2,
+              "steps_failed": 0,
+              "total_steps": 2
+            },
+            "browser_status": "completed",
+            "browser_steps_completed": 2,
+            "browser_final_result": "Opened google.com in a new tab."
+          },
+          "plan_graph": {
+            "directed": true,
+            "multigraph": false,
+            "graph": {},
+            "nodes": [
+              {
+                "data": {
+                  "index": "ROOT",
+                  "description": "initial query",
+                  "type": "ROOT",
+                  "status": "completed",
+                  "result": null,
+                  "conclusion": null,
+                  "error": null,
+                  "perception": {
+                    "entities": [
+                      "google.com",
+                      "new tab"
+                    ],
+                    "result_requirement": "Open google.com in a new tab in a browser",
+                    "original_goal_achieved": false,
+                    "local_goal_achieved": false,
+                    "confidence": "0.95",
+                    "reasoning": "The query requires browser automation to open a website in a new tab. This falls under the browser automation detection guidelines.",
+                    "local_reasoning": "No local data can satisfy this request; it requires browser interaction.",
+                    "last_tooluse_summary": "No tools used yet",
+                    "solution_summary": "Browser automation required to open google.com in a new tab.",
+                    "route": "browser",
+                    "instruction_to_summarize": "Not applicable for browser automation"
+                  },
+                  "from_step": null
+                },
+                "id": "ROOT"
+              },
+              {
+                "data": {
+                  "index": "BROWSER_AGENT",
+                  "description": "Browser automation: Query 1: open google.com in a new tab",
+                  "type": "CODE",
+                  "status": "completed",
+                  "result": null,
+                  "conclusion": null,
+                  "error": null,
+                  "perception": {
+                    "entities": [
+                      "google.com",
+                      "new tab"
+                    ],
+                    "result_requirement": "Open google.com in a new tab in a browser",
+                    "original_goal_achieved": true,
+                    "reasoning": "Browser automation completed with status: completed",
+                    "local_goal_achieved": true,
+                    "local_reasoning": "Browser agent executed 2 steps",
+                    "last_tooluse_summary": "BrowserAgent executed 2 steps",
+                    "solution_summary": "Opened google.com in a new tab.",
+                    "confidence": "0.9",
+                    "route": "summarize"
+                  },
+                  "from_step": "ROOT"
+                },
+                "id": "BROWSER_AGENT"
+              }
+            ],
+            "links": [
+              {
+                "type": "normal",
+                "source": "ROOT",
+                "target": "BROWSER_AGENT"
+              }
+            ]
+          },
+          "perception": {
+            "entities": [
+              "google.com",
+              "new tab"
+            ],
+            "result_requirement": "Open google.com in a new tab in a browser",
+            "original_goal_achieved": true,
+            "reasoning": "Browser automation completed with status: completed",
+            "local_goal_achieved": true,
+            "local_reasoning": "Browser agent executed 2 steps",
+            "last_tooluse_summary": "BrowserAgent executed 2 steps",
+            "solution_summary": "Opened google.com in a new tab.",
+            "confidence": "0.9",
+            "route": "summarize"
+          }
+        },
+        "summary_output": "Google.com has been opened in a new tab. The browser automation process completed 2 steps.",
+        "success": true,
+        "error": null,
+        "timestamp": "2025-06-27T20:11:11+00:00Z",
+        "return_to": ""
+      }
+    ],
+    "final_summary": "Google.com has been opened in a new tab. The browser automation process completed 2 steps.",
+    "status": "success",
+    "completed_at": "2025-06-27T20:12:12.110699"
+  },
+  "status": "success",
+  "final_step_id": "BROWSER_AGENT",
+  "reason": "Summarized successfully",
+  "timestamp": "2025-06-27T20:12:12.110699",
+  "original_query": "Query 1: open google.com in a new tab",
+  "final_summary": "Google.com has been opened in a new tab. The browser automation process completed 2 steps."
+}

@@ -1,0 +1,242 @@
+{
+  "context": {
+    "session_id": "e8dbc0b2-9b23-4833-a983-2c7e500ccb3d",
+    "original_query": "Query 1: open www.google.com",
+    "globals": {
+      "memory": [],
+      "browser_result": {
+        "status": "completed",
+        "result": "BrowserContext.new_page: Target page, context or browser has been closed",
+        "steps_completed": 6,
+        "steps_failed": 0,
+        "total_steps": 6
+      },
+      "browser_status": "completed",
+      "browser_steps_completed": 6,
+      "browser_final_result": "BrowserContext.new_page: Target page, context or browser has been closed"
+    },
+    "memory": [
+      {
+        "original_query": "Query 1: open www.google.com",
+        "result_requirement": "Final summary",
+        "summarizer_summary": "The attempt to open www.google.com in a browser resulted in the error: \"BrowserContext.new_page: Target page, context or browser has been closed\". The browser automation process completed 6 steps before encountering this issue.",
+        "confidence": 0.95,
+        "original_goal_achieved": true,
+        "route": "summarize"
+      }
+    ],
+    "graph": {
+      "directed": true,
+      "multigraph": false,
+      "graph": {},
+      "nodes": [
+        {
+          "data": {
+            "index": "ROOT",
+            "description": "initial query",
+            "type": "ROOT",
+            "status": "completed",
+            "result": null,
+            "conclusion": null,
+            "error": null,
+            "perception": {
+              "entities": [
+                "www.google.com"
+              ],
+              "result_requirement": "Open the specified website in a browser",
+              "original_goal_achieved": false,
+              "local_goal_achieved": false,
+              "confidence": "0.95",
+              "reasoning": "The query requires opening a website, which necessitates browser automation.",
+              "local_reasoning": "No local data can fulfill this request; a browser is required.",
+              "last_tooluse_summary": "No tools used yet.",
+              "solution_summary": "Browser automation required to open www.google.com.",
+              "route": "browser",
+              "instruction_to_summarize": "Not applicable for browser automation"
+            },
+            "from_step": null
+          },
+          "id": "ROOT"
+        },
+        {
+          "data": {
+            "index": "BROWSER_AGENT",
+            "description": "Browser automation: Query 1: open www.google.com",
+            "type": "CODE",
+            "status": "completed",
+            "result": null,
+            "conclusion": null,
+            "error": null,
+            "perception": {
+              "entities": [
+                "www.google.com"
+              ],
+              "result_requirement": "Open the specified website in a browser",
+              "original_goal_achieved": true,
+              "reasoning": "Browser automation completed with status: completed",
+              "local_goal_achieved": true,
+              "local_reasoning": "Browser agent executed 6 steps",
+              "last_tooluse_summary": "BrowserAgent executed 6 steps",
+              "solution_summary": "BrowserContext.new_page: Target page, context or browser has been closed",
+              "confidence": "0.9",
+              "route": "summarize"
+            },
+            "from_step": "ROOT"
+          },
+          "id": "BROWSER_AGENT"
+        }
+      ],
+      "links": [
+        {
+          "type": "normal",
+          "source": "ROOT",
+          "target": "BROWSER_AGENT"
+        }
+      ]
+    }
+  },
+  "session": {
+    "session_id": "e8dbc0b2-9b23-4833-a983-2c7e500ccb3d",
+    "original_query": "Query 1: open www.google.com",
+    "perception_snapshots": [
+      {
+        "run_id": "e8dbc0b2-9b23-4833-a983-2c7e500ccb3d-P",
+        "snapshot_type": "user_query",
+        "entities": [
+          "www.google.com"
+        ],
+        "result_requirement": "Open the specified website in a browser",
+        "original_goal_achieved": false,
+        "reasoning": "The query requires opening a website, which necessitates browser automation.",
+        "local_goal_achieved": false,
+        "local_reasoning": "No local data can fulfill this request; a browser is required.",
+        "last_tooluse_summary": "No tools used yet.",
+        "solution_summary": "Browser automation required to open www.google.com.",
+        "confidence": "0.95",
+        "route": "browser",
+        "timestamp": "...",
+        "return_to": ""
+      }
+    ],
+    "decision_snapshots": [],
+    "execution_snapshots": [],
+    "summarizer_snapshots": [
+      {
+        "run_id": "6df0b192-36b6-4883-91e9-4371e91d52d3",
+        "input": {
+          "original_query": "Query 1: open www.google.com",
+          "globals_schema": {
+            "memory": [],
+            "browser_result": {
+              "status": "completed",
+              "result": "BrowserContext.new_page: Target page, context or browser has been closed",
+              "steps_completed": 6,
+              "steps_failed": 0,
+              "total_steps": 6
+            },
+            "browser_status": "completed",
+            "browser_steps_completed": 6,
+            "browser_final_result": "BrowserContext.new_page: Target page, context or browser has been closed"
+          },
+          "plan_graph": {
+            "directed": true,
+            "multigraph": false,
+            "graph": {},
+            "nodes": [
+              {
+                "data": {
+                  "index": "ROOT",
+                  "description": "initial query",
+                  "type": "ROOT",
+                  "status": "completed",
+                  "result": null,
+                  "conclusion": null,
+                  "error": null,
+                  "perception": {
+                    "entities": [
+                      "www.google.com"
+                    ],
+                    "result_requirement": "Open the specified website in a browser",
+                    "original_goal_achieved": false,
+                    "local_goal_achieved": false,
+                    "confidence": "0.95",
+                    "reasoning": "The query requires opening a website, which necessitates browser automation.",
+                    "local_reasoning": "No local data can fulfill this request; a browser is required.",
+                    "last_tooluse_summary": "No tools used yet.",
+                    "solution_summary": "Browser automation required to open www.google.com.",
+                    "route": "browser",
+                    "instruction_to_summarize": "Not applicable for browser automation"
+                  },
+                  "from_step": null
+                },
+                "id": "ROOT"
+              },
+              {
+                "data": {
+                  "index": "BROWSER_AGENT",
+                  "description": "Browser automation: Query 1: open www.google.com",
+                  "type": "CODE",
+                  "status": "completed",
+                  "result": null,
+                  "conclusion": null,
+                  "error": null,
+                  "perception": {
+                    "entities": [
+                      "www.google.com"
+                    ],
+                    "result_requirement": "Open the specified website in a browser",
+                    "original_goal_achieved": true,
+                    "reasoning": "Browser automation completed with status: completed",
+                    "local_goal_achieved": true,
+                    "local_reasoning": "Browser agent executed 6 steps",
+                    "last_tooluse_summary": "BrowserAgent executed 6 steps",
+                    "solution_summary": "BrowserContext.new_page: Target page, context or browser has been closed",
+                    "confidence": "0.9",
+                    "route": "summarize"
+                  },
+                  "from_step": "ROOT"
+                },
+                "id": "BROWSER_AGENT"
+              }
+            ],
+            "links": [
+              {
+                "type": "normal",
+                "source": "ROOT",
+                "target": "BROWSER_AGENT"
+              }
+            ]
+          },
+          "perception": {
+            "entities": [
+              "www.google.com"
+            ],
+            "result_requirement": "Open the specified website in a browser",
+            "original_goal_achieved": true,
+            "reasoning": "Browser automation completed with status: completed",
+            "local_goal_achieved": true,
+            "local_reasoning": "Browser agent executed 6 steps",
+            "last_tooluse_summary": "BrowserAgent executed 6 steps",
+            "solution_summary": "BrowserContext.new_page: Target page, context or browser has been closed",
+            "confidence": "0.9",
+            "route": "summarize"
+          }
+        },
+        "summary_output": "The attempt to open www.google.com in a browser resulted in the error: \"BrowserContext.new_page: Target page, context or browser has been closed\". The browser automation process completed 6 steps before encountering this issue.",
+        "success": true,
+        "error": null,
+        "timestamp": "2025-06-27T18:24:28+00:00Z",
+        "return_to": ""
+      }
+    ],
+    "final_summary": "The attempt to open www.google.com in a browser resulted in the error: \"BrowserContext.new_page: Target page, context or browser has been closed\". The browser automation process completed 6 steps before encountering this issue.",
+    "status": "success",
+    "completed_at": "2025-06-27T18:26:20.141724"
+  },
+  "status": "success",
+  "final_step_id": "BROWSER_AGENT",
+  "reason": "Summarized successfully",
+  "timestamp": "2025-06-27T18:26:20.141724",
+  "original_query": "Query 1: open www.google.com",
+  "final_summary": "The attempt to open www.google.com in a browser resulted in the error: \"BrowserContext.new_page: Target page, context or browser has been closed\". The browser automation process completed 6 steps before encountering this issue."
+}

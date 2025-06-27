@@ -1,0 +1,34 @@
+[
+  {
+    "session_id": "e8dbc0b2-9b23-4833-a983-2c7e500ccb3d",
+    "original_query": "Query 1: open www.google.com",
+    "normalized_query": "open wwwgooglecom",
+    "named_entities": [],
+    "summary_output": "The attempt to open www.google.com in a browser resulted in the error: \"BrowserContext.new_page: Target page, context or browser has been closed\". The browser automation process completed 6 steps before encountering this issue.",
+    "timestamp": "2025-06-27T18:24:28+00:00Z"
+  },
+  {
+    "session_id": "2b816f17-57cc-4d75-9942-c3bdbed7f788",
+    "original_query": "Query 1: open google.com in a new tab",
+    "normalized_query": "open googlecom in a new tab",
+    "named_entities": [],
+    "summary_output": "The attempt to open Google.com in a new tab resulted in the following error: \"Error executing tool 'done': 1 validation error for DoneAction text Field required\". The browser automation process completed 2 steps before encountering this issue.",
+    "timestamp": "2025-06-27T19:25:40+00:00Z"
+  },
+  {
+    "session_id": "4a4df010-38ee-4a33-8936-60a800c5dcee",
+    "original_query": "Query 1: open www.google.com in a new tab",
+    "normalized_query": "open wwwgooglecom in a new tab",
+    "named_entities": [],
+    "summary_output": "The attempt to open www.google.com in a new tab resulted in an error: \"Error executing tool 'done': 1 validation error for DoneAction text Field required\". The browser automation process completed 2 steps before encountering this issue. Previous attempts to open Google.com in a new tab also resulted in similar errors. For more information on the error, visit https://errors.pydantic.dev/2.11/v/missing.",
+    "timestamp": "2025-06-27T19:37:00+00:00Z"
+  },
+  {
+    "session_id": "cd7ee89c-c895-4d52-8248-d268747e96a4",
+    "original_query": "Query 1: open google.com in a new tab",
+    "normalized_query": "open googlecom in a new tab",
+    "named_entities": [],
+    "summary_output": "Google.com has been opened in a new tab. The browser automation process completed 2 steps.",
+    "timestamp": "2025-06-27T20:11:11+00:00Z"
+  }
+]
