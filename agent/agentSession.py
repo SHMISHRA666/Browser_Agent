@@ -4,6 +4,7 @@ import uuid
 import time
 import json
 from datetime import datetime, UTC
+from utils.utils import CustomJSONEncoder
 
 # Used by all snapshots
 def current_utc_ts() -> str:
@@ -252,4 +253,4 @@ class AgentSession:
                 time.sleep(delay)
 
         print("\n[Session Snapshot]:")
-        print(json.dumps(self.get_snapshot_summary(), indent=2))
+        print(json.dumps(self.get_snapshot_summary(), indent=2, cls=CustomJSONEncoder))

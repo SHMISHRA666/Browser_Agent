@@ -1,3 +1,5 @@
+import logging
+logging.basicConfig(level=logging.INFO)
 from utils.utils import log_step, log_error
 import asyncio
 import yaml
@@ -69,7 +71,11 @@ async def interactive() -> None:
                 log_step("Goodbye!", symbol="👋")
                 break
     finally:
-        await multi_mcp.shutdown()
+        try:
+            await multi_mcp.shutdown()
+        except Exception as e:
+            # Ignore shutdown errors
+            pass
 
 if __name__ == "__main__":
     load_dotenv()

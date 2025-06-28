@@ -10,7 +10,7 @@ from typing import Optional
 from google.genai.errors import ServerError
 
 from agent.agentSession import AgentSession, PerceptionSnapshot
-from utils.utils import log_step, log_error, log_json_block
+from utils.utils import log_step, log_error, log_json_block, CustomJSONEncoder
 from utils.json_parser import parse_llm_json
 from agent.model_manager import ModelManager
 
@@ -26,7 +26,7 @@ class Perception:
         full_prompt = (
             f"{prompt_template.strip()}\n\n"
             "```json\n"
-            f"{json.dumps(p_input, indent=2)}\n"
+            f"{json.dumps(p_input, indent=2, cls=CustomJSONEncoder)}\n"
             "```"
         )
 

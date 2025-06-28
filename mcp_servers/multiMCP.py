@@ -213,15 +213,18 @@ class MultiMCP:
                 tools.extend(self.server_tools[server])
         return tools
 
-    # async def shutdown(self):
-    #     for client in self.client_cache.values():
-    #         await client.shutdown()
-
-
     async def shutdown(self):
         for client in self.client_cache.values():
-            if client.session:
-                await client.session.__aexit__(None, None, None)
-            if client.session_context:
-                await client.session_context.__aexit__(None, None, None)
+            try:
+                if client.session:
+                    await client.session.__aexit__(None, None, None)
+            except Exception as e:
+                # Ignore errors during session shutdown
+                pass
+            try:
+                if client.session_context:
+                    await client.session_context.__aexit__(None, None, None)
+            except Exception as e:
+                # Ignore errors during context shutdown
+                pass
 

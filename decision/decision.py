@@ -1,7 +1,7 @@
 import os
 import json
 from pathlib import Path
-from utils.utils import log_step, log_error, log_json_block
+from utils.utils import log_step, log_error, log_json_block, CustomJSONEncoder
 from google.genai.errors import ServerError
 import re
 from utils.json_parser import parse_llm_json
@@ -28,7 +28,7 @@ class Decision:
         function_list_text = self.multi_mcp.tool_description_wrapper()
         tool_descriptions = "\n".join(f"- `{desc.strip()}`" for desc in function_list_text)
         tool_descriptions = "\n\n### The ONLY Available Tools\n\n---\n\n" + tool_descriptions
-        full_prompt = f"{prompt_template.strip()}\n{tool_descriptions}\n\n```json\n{json.dumps(decision_input, indent=2)}\n```"
+        full_prompt = f"{prompt_template.strip()}\n{tool_descriptions}\n\n```json\n{json.dumps(decision_input, indent=2, cls=CustomJSONEncoder)}\n```"
 
         raw_text = ""
         try:

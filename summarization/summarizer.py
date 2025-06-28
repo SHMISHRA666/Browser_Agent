@@ -1,8 +1,7 @@
-
 import os
 import json
 from pathlib import Path
-from utils.utils import log_step, log_error, log_json_block
+from utils.utils import log_step, log_error, log_json_block, CustomJSONEncoder
 from google.genai.errors import ServerError
 import time
 from utils.utils import log_step, log_error, save_final_plan
@@ -28,7 +27,7 @@ class Summarizer:
             full_prompt = (
                 f"Current Time: {datetime.utcnow().isoformat()}\n\n"
                 f"{prompt_template.strip()}\n\n"
-                f"{json.dumps(s_input, indent=2)}"
+                f"{json.dumps(s_input, indent=2, cls=CustomJSONEncoder)}"
             )
 
             log_step("[SENDING PROMPT TO SUMMARIZER...]")

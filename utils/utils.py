@@ -146,6 +146,32 @@ from pathlib import Path
 from datetime import datetime
 from rich import print
 
+class CustomJSONEncoder(json.JSONEncoder):
+    """Custom JSON encoder to handle non-serializable objects like CallToolResult."""
+    
+    def default(self, obj):
+        try:
+            # Handle CallToolResult objects
+            if hasattr(obj, 'content') and hasattr(obj.content, '__iter__'):
+                try:
+                    # Try to extract text content
+                    if len(obj.content) > 0 and hasattr(obj.content[0], 'text'):
+                        return {"message": obj.content[0].text}
+                    else:
+                        return {"data": str(obj.content)}
+                except:
+                    return {"data": str(obj)}
+            
+            # Handle objects with attributes
+            elif hasattr(obj, '__dict__'):
+                return {"data": str(obj)}
+            
+            # Handle other non-serializable types
+            else:
+                return str(obj)
+        except Exception:
+            return {"error": "Serialization failed", "data": str(obj)}
+
 def get_log_folder(session_id: str, base_dir: str = "memory/session_logs") -> Path:
     now = datetime.now()
     folder = Path(base_dir) / str(now.year) / f"{now.month:02d}" / f"{now.day:02d}"
@@ -155,7 +181,7 @@ def get_log_folder(session_id: str, base_dir: str = "memory/session_logs") -> Pa
 def save_json_log(obj: dict, path: Path):
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
-        json.dump(obj, f, indent=2)
+        json.dump(obj, f, indent=2, cls=CustomJSONEncoder)
     print(f"\n\n[green]📝 Saved JSON log:[/green] {path}\n")
 
 def append_step_log(session_id: str, step_data: dict, base_dir: str = "memory/session_logs"):
@@ -169,7 +195,7 @@ def append_step_log(session_id: str, step_data: dict, base_dir: str = "memory/se
 
     logs.append(step_data)
     with open(step_path, "w", encoding="utf-8") as f:
-        json.dump(logs, f, indent=2)
+        json.dump(logs, f, indent=2, cls=CustomJSONEncoder)
     print(f"[cyan]🔄 Step log updated:[/cyan] {step_path}")
 
 def save_final_plan(session_id: str, final_data: dict, base_dir: str = "memory/session_logs"):
