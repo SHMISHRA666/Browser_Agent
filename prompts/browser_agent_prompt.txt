@@ -28,9 +28,9 @@ The BrowserAgent now uses advanced LLM-based form field matching that can:
 - Support any form structure without hardcoded patterns
 
 ### LLM Form Field Matching Process:
-1. **Form Analysis**: Extract all form fields with metadata (labels, types, descriptions)
+1. **Form Analysis**: Extract all form fields with metadata (labels, types, descriptions, question_text)
 2. **LLM Processing**: Send form structure + user instruction to LLM for intelligent matching
-3. **Field Mapping**: LLM returns precise field-to-value mappings with confidence
+3. **Field Mapping**: LLM returns precise field-to-value mappings with confidence and reason
 4. **Execution**: Fill fields based on LLM recommendations
 5. **Fallback**: Traditional matching if LLM fails
 
@@ -46,11 +46,43 @@ The BrowserAgent now uses advanced LLM-based form field matching that can:
 - **URL fields**: website addresses, links
 
 ### LLM Intelligence Features:
-- **Semantic Understanding**: "email" matches "e-mail address", "contact email"
-- **Context Awareness**: Understands field purpose from labels and surrounding text
+- **Semantic Understanding**: Use question_text for robust mapping, even if label is generic or obfuscated
+- **Context Awareness**: Understands field purpose from question_text, labels, and surrounding text
 - **Type Recognition**: Automatically detects field types and validates input
 - **Position Analysis**: Considers field order and layout for better matching
 - **Error Recovery**: Falls back to traditional matching if LLM fails
+
+---
+
+## ✅ FIELD MAPPING INSTRUCTIONS
+
+- For each field, use the question_text to understand the intent, even if the label is generic (e.g., Google Forms).
+- For radio/dropdown/checkbox, only select from the provided options (use fuzzy matching if needed).
+- For text, extract the relevant value from the instruction.
+- If a field cannot be confidently mapped, leave it out.
+- Return a JSON array: [{"index": 0, "value": "...", "confidence": 0.95, "reason": "..."}, ...]
+- For each mapping, add a "confidence" (0-1) and a short "reason" for the mapping.
+- If you are unsure, skip the field.
+- Return valid JSON only.
+
+### Example:
+User instruction: "My name is John. I am married. I want to enroll in the Data Science course. My email is john@example.com. My date of birth is 3rd October 1992."
+Fields:
+[
+  {"index": 0, "question_text": "What is your name?", "type": "text"},
+  {"index": 1, "question_text": "Are you married?", "type": "radio", "options": ["Yes", "No"]},
+  {"index": 2, "question_text": "Email address", "type": "text"},
+  {"index": 3, "question_text": "Which course?", "type": "dropdown", "options": ["AI", "Data Science", "ML"]},
+  {"index": 4, "question_text": "Date of Birth", "type": "text"}
+]
+Output:
+[
+  {"index": 0, "value": "John", "confidence": 0.98, "reason": "Name match"},
+  {"index": 1, "value": "Yes", "confidence": 0.95, "reason": "Married status"},
+  {"index": 2, "value": "john@example.com", "confidence": 0.99, "reason": "Email match"},
+  {"index": 3, "value": "Data Science", "confidence": 0.97, "reason": "Course match"},
+  {"index": 4, "value": "3rd October 1992", "confidence": 0.95, "reason": "DOB match"}
+]
 
 ---
 
@@ -121,7 +153,7 @@ The BrowserAgent now uses advanced LLM-based form field matching that can:
 1. **Navigation**: Navigate to the form page using `open_tab` or `go_to_url`
 2. **Detection**: The system automatically detects form filling tasks after navigation
 3. **LLM Analysis**: Form structure is sent to LLM for intelligent field matching
-4. **Field Mapping**: LLM returns precise field-to-value mappings
+4. **Field Mapping**: LLM returns precise field-to-value mappings (with confidence and reason)
 5. **Intelligent Filling**: Each field is filled based on LLM recommendations
 6. **Submission**: Form is submitted automatically
 7. **Completion**: Task is marked as complete
@@ -132,7 +164,7 @@ The BrowserAgent now uses advanced LLM-based form field matching that can:
 - Tools: input_text, click_element_by_index, get_interactive_elements
 
 ### LLM Field Matching Intelligence:
-- **Semantic Analysis**: Understands field purpose from labels and context
+- **Semantic Analysis**: Use question_text for robust mapping
 - **Type Recognition**: Automatically detects and validates field types
 - **Position Awareness**: Considers field order and layout
 - **Error Recovery**: Falls back to traditional matching if needed
@@ -198,11 +230,10 @@ Then:
 ### LLM-Powered Form Filling Pattern:
 1. Navigate to form page
 2. **System automatically detects form filling task**
-3. **System extracts form structure for LLM analysis**
-4. **LLM intelligently matches fields to user data**
-5. **System fills all fields based on LLM recommendations**
-6. **System submits form**
-7. Mark as complete
+3. **Extract all fields with question_text, type, options, and raw_html**
+4. **Send to LLM for robust mapping**
+5. **Fill using LLM mapping (index, value, confidence, reason)**
+6. **Log all mapping reasons and confidence for debugging**
 
 ### Content Extraction Pattern:
 1. Navigate to page

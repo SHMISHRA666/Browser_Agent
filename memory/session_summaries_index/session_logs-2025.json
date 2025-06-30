@@ -1,34 +1,13 @@
 [
   {
-    "session_id": "e8dbc0b2-9b23-4833-a983-2c7e500ccb3d",
-    "original_query": "Query 1: open www.google.com",
-    "normalized_query": "open wwwgooglecom",
-    "named_entities": [],
-    "summary_output": "The attempt to open www.google.com in a browser resulted in the error: \"BrowserContext.new_page: Target page, context or browser has been closed\". The browser automation process completed 6 steps before encountering this issue.",
-    "timestamp": "2025-06-27T18:24:28+00:00Z"
-  },
-  {
-    "session_id": "2b816f17-57cc-4d75-9942-c3bdbed7f788",
-    "original_query": "Query 1: open google.com in a new tab",
-    "normalized_query": "open googlecom in a new tab",
-    "named_entities": [],
-    "summary_output": "The attempt to open Google.com in a new tab resulted in the following error: \"Error executing tool 'done': 1 validation error for DoneAction text Field required\". The browser automation process completed 2 steps before encountering this issue.",
-    "timestamp": "2025-06-27T19:25:40+00:00Z"
-  },
-  {
-    "session_id": "4a4df010-38ee-4a33-8936-60a800c5dcee",
-    "original_query": "Query 1: open www.google.com in a new tab",
-    "normalized_query": "open wwwgooglecom in a new tab",
-    "named_entities": [],
-    "summary_output": "The attempt to open www.google.com in a new tab resulted in an error: \"Error executing tool 'done': 1 validation error for DoneAction text Field required\". The browser automation process completed 2 steps before encountering this issue. Previous attempts to open Google.com in a new tab also resulted in similar errors. For more information on the error, visit https://errors.pydantic.dev/2.11/v/missing.",
-    "timestamp": "2025-06-27T19:37:00+00:00Z"
-  },
-  {
-    "session_id": "cd7ee89c-c895-4d52-8248-d268747e96a4",
-    "original_query": "Query 1: open google.com in a new tab",
-    "normalized_query": "open googlecom in a new tab",
-    "named_entities": [],
-    "summary_output": "Google.com has been opened in a new tab. The browser automation process completed 2 steps.",
-    "timestamp": "2025-06-27T20:11:11+00:00Z"
+    "session_id": "52deb0ba-c256-4842-921e-5b3a80b854b1",
+    "original_query": "Query 1: fill form https://forms.gle/6Nc6QaaJyDvePxLv7 in a new tab with name shubhangi mishra and email id shubhimishra666@gmail.com and yes i am married and i am taking EAG course mainly EAGv1 course and my date of birth is 3rd october 1992",
+    "normalized_query": "fill form httpsformsgle6nc6qaajydvepxlv7 in a new tab with name shubhangi mishra and email id shubhimishra666gmailcom and yes i am married and i am taking eag course mainly eagv1 course and my date of birth is 3rd october 1992",
+    "named_entities": [
+      "shubhangi mishra",
+      "eag"
+    ],
+    "summary_output": "The Google Form at [https://forms.gle/6Nc6QaaJyDvePxLv7](https://forms.gle/6Nc6QaaJyDvePxLv7) has been filled with the following information:\n\n*   **Name:** shubhangi mishra\n*   **Email:** shubhimishra666@gmail.com\n*   **Marital Status:** Yes\n*   **Course:** EAGv1\n*   **Date of Birth:** 3rd october 1992\n\nThe form was submitted successfully, but there were errors encountered while attempting to input the email, marital status, course, and date of birth into the respective fields. The tool clicked on \"Sign in to Google\" during the submission process.",
+    "timestamp": "2025-06-30T18:06:29+00:00Z"
   }
 ]

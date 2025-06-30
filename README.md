@@ -227,21 +227,7 @@ The system automatically detects when a task involves form filling by checking:
 - **Tools**: input_text, click_element_by_index, get_interactive_elements
 
 #### 2. Data Extraction
-Form data is extracted from natural language instructions using pattern matching:
-
-```python
-# Example instruction
-"Fill form with name shubhangi mishra and email shubhimishra666@gmail.com and yes i am married and i am taking EAG course mainly EAGv1 course and my date of birth is 3rd october 1992"
-
-# Extracted data
-{
-    "name": "shubhangi mishra",
-    "email": "shubhimishra666@gmail.com", 
-    "marital_status": "married",
-    "course": "EAG course mainly EAGv1 course",
-    "date_of_birth": "3rd october 1992"
-}
-```
+Form data is extracted from natural language instructions using pattern matching.
 
 #### 3. Field Matching
 Fields are matched using multiple strategies:
@@ -467,8 +453,6 @@ uv run pytest tests/
 
 ### Specific Test Categories
 ```bash
-# Browser agent tests
-uv run pytest tests/browser_agent_test.py
 
 # Perception tests
 uv run pytest perception/perception_test.py
@@ -538,6 +522,133 @@ Key dependencies include:
 - **JSON Serialization Error**: Added custom JSON encoder for CallToolResult objects
 - **Field Filling Improvements**: Added field focusing and wait times
 - **Session Log JSON Parsing Error**: Fixed serialization across all components
+
+## 🔧 Enhanced Field Extraction and Mapping Improvements
+
+### Overview
+This section outlines the comprehensive improvements made to the BrowserAgent to fix field extraction, type detection, and LLM-based field mapping issues, particularly for Google Forms and other complex forms.
+
+### Issues Identified and Resolved
+1. **Poor Field Extraction**: Fields were showing as "Text Input" instead of actual question text
+2. **No Dropdown/Radio/Checkbox Detection**: All fields were treated as text inputs
+3. **Generic Field Mapping**: LLM was mapping to empty field names instead of actual questions
+4. **Missing Submit Method**: Runtime error due to missing `_submit_form` method
+
+### Solutions Implemented
+
+#### 1. Enhanced Field Extraction (`_extract_enhanced_field_info`)
+- **Multiple Question Text Extraction Strategies**:
+  - Strategy 1: Look for explicit question text fields (`question_text`, `question`, `label`, `title`, `text`, `prompt`)
+  - Strategy 2: Check accessibility attributes (`aria-label`, `ariaLabel`, `aria-describedby`)
+  - Strategy 3: Look for parent/sibling text in HTML structure
+  - Strategy 4: Check surrounding context
+  - Strategy 5: Use meaningful description text
+  - Strategy 6: Extract from placeholder text
+  - Strategy 7: Fallback to raw HTML pattern matching
+
+#### 2. Improved Field Type Detection (`_detect_field_type`)
+- **Enhanced Type Inference**:
+  - Check for explicit `type` field in data
+  - Look for `options`/`choices` to identify dropdown/radio/checkbox
+  - Analyze `action` field for type hints
+  - Use semantic text analysis for type detection
+  - Support for: `text`, `email`, `tel`, `date`, `number`, `textarea`, `dropdown`, `radio`, `checkbox`, `file`, `url`
+
+#### 3. Better Options Extraction (`_extract_field_options`)
+- **Multiple Data Sources**:
+  - Check for `options`, `choices`, `values`, `items` fields
+  - Fallback to HTML pattern matching for option extraction
+  - Filter out empty or invalid options
+  - Ensure all options are properly formatted strings
+
+#### 4. Enhanced LLM Field Mapping Prompt
+- **Improved Prompt Structure**:
+  - Explicitly instructs LLM to use `question_text` for semantic matching
+  - Provides clear examples of field mapping patterns
+  - Includes field type and options information
+  - Requests confidence scores and reasoning for each mapping
+  - Focuses on semantic matching between questions and user instructions
+
+#### 5. Fixed Submit Method (`_submit_form`)
+- **Added Missing Method**:
+  - Implements form submission with submit button detection
+  - Searches for buttons with text like 'Submit', 'Send', 'Next', 'Done'
+  - Fallback to index 0 if no submit button found
+  - Proper error handling and logging
+
+#### 6. Enhanced Field Filling Logic
+- **Improved Type Handling**:
+  - Better dropdown option selection
+  - Enhanced radio button and checkbox handling
+  - Support for all field types (email, tel, date, number, url, textarea)
+  - Proper field focusing before interaction
+
+### Code Changes Made
+
+#### 1. `agents/browser_agent.py`
+- Added `_extract_enhanced_field_info()` method
+- Added `_extract_question_text()` method with 7 fallback strategies
+- Added `_detect_field_type()` method with comprehensive type detection
+- Enhanced `_extract_field_options()` method
+- Updated `_convert_elements_to_llm_format()` to use enhanced extraction
+- Improved `_create_llm_field_mapping_prompt()` with better examples
+- Added `_submit_form()` method
+- Enhanced `_fill_field_by_type()` method
+
+#### 2. `test_improved_browser_agent.py`
+- Updated to properly initialize MultiMCP with server configs
+- Added field extraction testing functionality
+- Enhanced result analysis and reporting
+- Added option to test field extraction only
+
+### Testing Results
+The improvements address the following specific issues from the original logs:
+
+#### Before (Issues):
+```
+🔍 Form 0: {'id': 4, 'desc': 'Text Input', 'action': 'input_text'}
+🔍 Form 1: {'id': 5, 'desc': 'Text Input', 'action': 'input_text'}
+🔍 Form 2: {'id': 6, 'desc': 'Text Input', 'action': 'input_text'}
+🔍 Form 3: {'id': 7, 'desc': 'Text Input', 'action': 'input_text'}
+```
+
+#### After (Expected):
+```
+🔍 Enhanced field 4: "What is your name?" (type: text, options: 0)
+🔍 Enhanced field 5: "Email address" (type: email, options: 0)
+🔍 Enhanced field 6: "Date of birth" (type: date, options: 0)
+🔍 Enhanced field 7: "Are you married?" (type: radio, options: ["Yes", "No"])
+```
+
+#### Expected Improvements
+1. **Better Question Text**: Fields should show actual questions instead of "Text Input"
+2. **Proper Type Detection**: Dropdown, radio, and checkbox fields should be detected
+3. **Accurate Field Mapping**: LLM should map values to correct fields based on question text
+4. **Successful Form Submission**: Forms should be submitted without errors
+
+### Future Enhancements
+1. **Advanced DOM Traversal**: Implement more sophisticated parent/sibling node analysis
+2. **Machine Learning**: Add ML-based field type detection
+3. **Form Templates**: Create templates for common form platforms
+4. **Validation**: Add form validation before submission
+5. **Error Recovery**: Implement better error handling and retry logic
+
+### Troubleshooting
+If issues persist:
+1. Check that the MCP server is running and accessible
+2. Verify the Google Form URL is accessible
+3. Check the logs for specific error messages
+4. Run the field extraction test first to isolate issues
+5. Review the generated JSON files for debugging information
+
+### Conclusion
+These improvements significantly enhance the BrowserAgent's ability to:
+- Extract meaningful question text from complex forms
+- Detect and handle different field types properly
+- Map user instructions to form fields accurately
+- Submit forms successfully
+
+The enhanced field extraction and mapping logic should resolve the issues with Google Forms and other obfuscated form structures.
 
 ## 🤝 Contributing
 

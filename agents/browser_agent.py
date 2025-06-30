@@ -8,6 +8,7 @@ import re
 from difflib import SequenceMatcher
 import logging
 import os
+from dateutil.parser import parse
 
 from agent.agentSession import AgentSession
 from agent.model_manager import ModelManager
@@ -367,64 +368,108 @@ class BrowserAgent:
     async def _handle_llm_powered_form_interaction(self, instruction: str, execution_state: Dict[str, Any]) -> Dict[str, Any]:
         """
         Handle form interaction using LLM-powered intelligent field matching.
-        This replaces the old hardcoded field matching logic.
+        This replaces the old hardcoded field matching logic with enhanced error handling.
         """
         log_step("🧠 Starting LLM-powered form interaction", symbol="🧠")
         
         try:
             # Step 1: Extract form structure from the page
+            log_step("📋 Step 1: Extracting form structure", symbol="1️⃣")
             form_structure = await self._extract_form_structure()
             if not form_structure:
+                log_step("❌ No form structure found", symbol="❌")
                 return {
                     "status": "error",
                     "result": "Could not extract form structure from the page. The page may not be loaded or may not contain form elements.",
                     "form_completed": False,
-                    "suggestion": "Try refreshing the page or waiting for it to load completely."
+                    "suggestion": "Try refreshing the page or waiting for it to load completely.",
+                    "debug_info": {
+                        "step": "form_structure_extraction",
+                        "error": "No form fields detected"
+                    }
                 }
             
             log_step(f"📋 Extracted {len(form_structure)} form fields", symbol="📊")
             
+            # Log form structure for debugging
+            for i, field in enumerate(form_structure):
+                log_step(f"📋 Field {i}: {field.get('type', 'unknown')} - {field.get('label', 'no label')} - Options: {field.get('options', [])}", symbol="🔍")
+            
             # Step 2: Get LLM-powered field mapping
+            log_step("🧠 Step 2: Getting LLM field mapping", symbol="2️⃣")
             field_mapping = await self._get_llm_field_mapping(instruction, form_structure)
             if not field_mapping:
+                log_step("❌ No field mapping generated", symbol="❌")
                 return {
                     "status": "error", 
                     "result": "LLM could not determine field mappings. The form structure may be unclear or the instruction may not match available fields.",
                     "form_completed": False,
-                    "suggestion": "Check if the form fields are properly labeled and the instruction contains clear field information."
+                    "suggestion": "Check if the form fields are properly labeled and the instruction contains clear field information.",
+                    "debug_info": {
+                        "step": "llm_field_mapping",
+                        "error": "No field mappings returned",
+                        "form_structure_count": len(form_structure)
+                    }
                 }
             
             log_step(f"🧠 LLM mapped {len(field_mapping)} fields", symbol="✅")
             
+            # Log field mappings for debugging
+            for mapping in field_mapping:
+                log_step(f"🧠 Map: {mapping.get('field_name', 'unknown')} -> '{mapping.get('value', '')}' (confidence: {mapping.get('confidence', 0)})", symbol="🔗")
+            
             # Step 3: Execute the field filling instructions
+            log_step("📝 Step 3: Executing field filling", symbol="3️⃣")
             fill_results = await self._execute_field_filling(field_mapping)
             
             # Check if any fields were filled successfully
             successful_fills = [r for r in fill_results if r.get('status') == 'success']
+            failed_fills = [r for r in fill_results if r.get('status') == 'error']
+            
+            log_step(f"📝 Field filling results: {len(successful_fills)} successful, {len(failed_fills)} failed", symbol="📊")
+            
             if not successful_fills:
+                log_step("❌ No fields filled successfully", symbol="❌")
                 return {
                     "status": "error",
                     "result": "Failed to fill any form fields. The field indices may be incorrect or the form may have changed.",
                     "form_completed": False,
-                    "suggestion": "Try refreshing the page and attempting the form filling again."
+                    "suggestion": "Try refreshing the page and attempting the form filling again.",
+                    "debug_info": {
+                        "step": "field_filling",
+                        "error": "No successful field fills",
+                        "failed_fills": failed_fills
+                    }
                 }
             
             # Step 4: Submit the form
+            log_step("📤 Step 4: Submitting form", symbol="4️⃣")
             submit_result = await self._submit_form()
             
-            return {
+            # Prepare detailed result
+            result = {
                 "status": "success",
                 "result": {
                     "message": "Form filled and submitted successfully using LLM intelligence",
                     "fields_filled": len(successful_fills),
                     "total_fields": len(field_mapping),
+                    "failed_fields": len(failed_fills),
                     "field_mapping": field_mapping,
                     "fill_results": fill_results,
                     "submit_result": submit_result
                 },
                 "form_completed": True,
-                "filled_fields": [field["field_name"] for field in field_mapping]
+                "filled_fields": [field["field_name"] for field in field_mapping],
+                "debug_info": {
+                    "form_structure_count": len(form_structure),
+                    "field_mapping_count": len(field_mapping),
+                    "successful_fills": len(successful_fills),
+                    "failed_fills": len(failed_fills)
+                }
             }
+            
+            log_step(f"✅ Form interaction completed successfully: {len(successful_fills)}/{len(field_mapping)} fields filled", symbol="✅")
+            return result
             
         except Exception as e:
             log_error("LLM-powered form interaction failed", e)
@@ -432,12 +477,18 @@ class BrowserAgent:
                 "status": "error",
                 "result": f"LLM form interaction failed: {str(e)}",
                 "form_completed": False,
-                "suggestion": "Try refreshing the page and attempting the form filling again."
+                "suggestion": "Try refreshing the page and attempting the form filling again.",
+                "debug_info": {
+                    "step": "general_error",
+                    "error": str(e),
+                    "error_type": type(e).__name__
+                }
             }
 
     async def _extract_form_structure(self) -> List[Dict[str, Any]]:
         """
         Extract form structure from the current page and convert to structured format for LLM.
+        Enhanced to detect complex form fields and provide detailed metadata.
         """
         log_step("🔍 Extracting form structure from page", symbol="🔍")
         
@@ -459,11 +510,22 @@ class BrowserAgent:
                         form_structure = self._extract_from_enhanced_structure(page_structure)
                         if form_structure:
                             log_step(f"📋 Extracted {len(form_structure)} fields from enhanced structure", symbol="📊")
+                            # Check if the extracted fields have meaningful question text
+                            meaningful_fields = [f for f in form_structure if f.get('question_text', '').lower() not in ['id', 'text input', 'input', 'field'] and not f.get('question_text', '').startswith('Form field')]
+                            if len(meaningful_fields) < len(form_structure):
+                                log_step("⚠️ Some fields lack meaningful question text, trying detailed analysis", symbol="⚠️")
+                                try:
+                                    detailed_form_structure = await self._get_detailed_form_info()
+                                    if detailed_form_structure:
+                                        log_step(f"📋 Detailed analysis found {len(detailed_form_structure)} fields", symbol="📊")
+                                        return detailed_form_structure
+                                except Exception as e:
+                                    log_step(f"⚠️ Detailed analysis failed: {e}", symbol="⚠️")
                             return form_structure
                 except Exception as e:
                     log_step(f"🔍 Enhanced page structure failed: {e}", symbol="⚠️")
                 
-                # Fallback to interactive elements
+                # Fallback to interactive elements with structured output
                 elements_result = await self.multi_mcp.function_wrapper("get_interactive_elements", True, True, True)
             
             # Log the raw result for debugging
@@ -480,6 +542,30 @@ class BrowserAgent:
             form_structure = self._convert_elements_to_llm_format(elements_result)
             
             log_step(f"📋 Converted {len(form_structure)} form fields to LLM format", symbol="📊")
+            
+            # If no forms found, try Google Forms specific extraction
+            if not form_structure:
+                log_step("🔍 No traditional forms found, trying Google Forms specific extraction", symbol="⚠️")
+                try:
+                    google_forms_structure = await self._extract_google_forms_structure(elements_result)
+                    if google_forms_structure:
+                        log_step(f"📋 Google Forms extraction found {len(google_forms_structure)} fields", symbol="📊")
+                        return google_forms_structure
+                except Exception as e:
+                    log_step(f"🔍 Google Forms extraction failed: {e}", symbol="⚠️")
+            
+            # Check if the extracted fields have meaningful question text
+            meaningful_fields = [f for f in form_structure if f.get('question_text', '').lower() not in ['id', 'text input', 'input', 'field'] and not f.get('question_text', '').startswith('Form field')]
+            if len(meaningful_fields) < len(form_structure):
+                log_step("⚠️ Some fields lack meaningful question text, trying detailed analysis", symbol="⚠️")
+                try:
+                    # Try detailed form analysis as fallback
+                    detailed_form_structure = await self._get_detailed_form_info()
+                    if detailed_form_structure:
+                        log_step(f"📋 Detailed analysis found {len(detailed_form_structure)} fields", symbol="📊")
+                        return detailed_form_structure
+                except Exception as e:
+                    log_step(f"⚠️ Detailed analysis failed: {e}", symbol="⚠️")
             
             # If still no form fields found, try a different approach
             if not form_structure:
@@ -501,9 +587,194 @@ class BrowserAgent:
             log_error("Failed to extract form structure", e)
             return []
 
+    async def _extract_google_forms_structure(self, elements_result: Any) -> List[Dict[str, Any]]:
+        """
+        Extract form structure specifically for Google Forms by looking at all interactive elements.
+        Google Forms doesn't use traditional HTML forms, so we need to look at inputs, textareas, etc.
+        """
+        form_fields = []
+        
+        try:
+            if not isinstance(elements_result, dict):
+                return []
+            
+            # Look for all possible interactive elements that could be form fields
+            interactive_elements = []
+            
+            # Check for inputs
+            if 'inputs' in elements_result:
+                interactive_elements.extend(elements_result['inputs'])
+            
+            # Check for textareas
+            if 'textareas' in elements_result:
+                interactive_elements.extend(elements_result['textareas'])
+            
+            # Check for selects (dropdowns)
+            if 'selects' in elements_result:
+                interactive_elements.extend(elements_result['selects'])
+            
+            # Check for buttons that might be radio/checkbox groups
+            if 'buttons' in elements_result:
+                # Filter buttons that might be form-related
+                form_buttons = []
+                for btn in elements_result['buttons']:
+                    btn_text = btn.get('text', '').lower()
+                    # Skip submit buttons
+                    if btn_text not in ['submit', 'send', 'next', 'done']:
+                        form_buttons.append(btn)
+                interactive_elements.extend(form_buttons)
+            
+            # Check for any other interactive elements
+            for key, value in elements_result.items():
+                if key not in ['success', 'nav', 'forms', 'total'] and isinstance(value, list):
+                    interactive_elements.extend(value)
+            
+            log_step(f"🔍 Found {len(interactive_elements)} potential interactive elements", symbol="🔍")
+            
+            # Process each interactive element as a potential form field
+            for i, element in enumerate(interactive_elements):
+                if not isinstance(element, dict):
+                    continue
+                
+                # Extract raw HTML and question text using the new function
+                raw_html = element.get('raw_html', '')
+                question_text = self._extract_question_from_html(raw_html)
+                
+                if not question_text:
+                    question_text = f"Form field {element.get('id', i)}"
+                
+                # Assign correct type based on description
+                desc = element.get("desc", "").lower()
+                if "text" in desc:
+                    field_type = "text"
+                elif "radio" in desc:
+                    field_type = "radio"
+                elif "check" in desc:
+                    field_type = "checkbox"
+                elif "drop" in desc:
+                    field_type = "dropdown"
+                else:
+                    field_type = "text"  # default fallback
+                
+                # Construct field with proper structure
+                field = {
+                    "index": i,
+                    "id": element.get("id", i),
+                    "question_text": question_text,
+                    "type": field_type,
+                    "options": element.get("options", []),
+                    "raw_html": raw_html,
+                    "desc": desc,
+                    "action": element.get("action", ""),
+                    "required": element.get("required", True),
+                    "tag": self._get_field_tag(field_type),
+                    "name": element.get("name", ""),
+                    "placeholder": element.get("placeholder", ""),
+                    "label": desc,
+                    "description": desc
+                }
+                
+                # Add debug logging for each field
+                log_step(f"🧪 Field {i} -> '{question_text}' [type: {field_type}]", symbol="🔍")
+                
+                form_fields.append(field)
+            
+            log_step(f"📋 Extracted {len(form_fields)} fields from Google Forms structure", symbol="📊")
+            # Extra logging for debugging field extraction
+            for i, f in enumerate(form_fields):
+                log_step(f"🧪 Field {i} debug context:\n"
+                        f"  Question: {f.get('question_text')}\n"
+                        f"  Raw HTML snippet: {f.get('raw_html', '')[:300]}", symbol="🧬")
+
+            return form_fields
+            
+        except Exception as e:
+            log_error("Failed to extract Google Forms structure", e)
+            return []
+
+    def _extract_question_from_html(self, raw_html: str) -> str:
+        """
+        Extract question text from HTML content using regex patterns.
+        Find likely label strings from HTML content that aren't form controls or generic labels.
+        """
+        try:
+            if not raw_html:
+                return ""
+            
+            # Find likely label strings from HTML content
+            matches = re.findall(r'<div[^>]*>(.*?)</div>', raw_html)
+            texts = [m.strip() for m in matches if 5 < len(m.strip()) < 100]
+            
+            # Return first candidate that isn't a form control or generic label
+            for txt in texts:
+                if txt.lower() not in ['text input', 'field', 'input'] and not txt.lower().startswith('form field'):
+                    return txt
+            
+            # If no div matches found, try other patterns
+            # Look for aria-label, placeholder, or title attributes
+            aria_patterns = [
+                r'aria-label[=:]\s*["\']([^"\']+)["\']',
+                r'placeholder[=:]\s*["\']([^"\']+)["\']',
+                r'title[=:]\s*["\']([^"\']+)["\']'
+            ]
+            
+            for pattern in aria_patterns:
+                matches = re.findall(pattern, raw_html, re.IGNORECASE)
+                for match in matches:
+                    if match and match.lower() not in ['text input', 'input', 'field', 'id']:
+                        return match.strip()
+            
+            # Try to extract from any text content
+            text_match = re.search(r'>([^<>]{4,100})<', raw_html)
+            if text_match:
+                potential = text_match.group(1).strip()
+                if not potential.lower().startswith("form field"):
+                    return potential
+            
+            return ""
+            
+        except Exception as e:
+            log_error("Failed to extract question from HTML", e)
+            return ""
+
+    def _extract_google_forms_question_text(self, element: Dict[str, Any]) -> str:
+        """
+        Extract question text from Google Forms elements using extended strategies.
+        """
+        try:
+            # Priority 1: Use aria-label or title
+            for attr in ['aria-label', 'ariaLabel', 'title', 'placeholder', 'text']:
+                if attr in element and element[attr]:
+                    val = element[attr].strip()
+                    if val.lower() not in ['text input', 'input', 'field', 'id', 'form field']:
+                        return val
+
+            # Priority 2: Use parent_text if available
+            if 'parent_text' in element:
+                val = element['parent_text'].strip()
+                if val.lower() not in ['text input', 'input', 'field', 'id', 'form field']:
+                    return val
+
+            # Priority 3: Extract from raw HTML using the new function
+            raw_html = element.get("raw_html", "")
+            question_text = self._extract_question_from_html(raw_html)
+            if question_text:
+                return question_text
+
+            # Priority 4: Fallback to any other informative string
+            for key, val in element.items():
+                if isinstance(val, str) and 4 < len(val) < 100:
+                    if any(w in val.lower() for w in ['name', 'email', 'course', 'married', 'date']):
+                        return val.strip()
+
+            return f"Form field {element.get('id', 'unknown')}"
+        except Exception as e:
+            log_error("Failed to extract Google Forms question text", e)
+            return f"Form field {element.get('id', 'unknown')}"
+
     def _extract_from_enhanced_structure(self, page_structure: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
-        Extract form fields from enhanced page structure.
+        Extract form fields from enhanced page structure with improved field detection.
         """
         form_fields = []
         
@@ -511,36 +782,38 @@ class BrowserAgent:
             # Look for forms in the enhanced structure
             if 'forms' in page_structure:
                 for i, form in enumerate(page_structure['forms']):
-                    field_info = {
-                        "index": i,
-                        "tag": "input",
-                        "type": self._infer_field_type(str(form)),
-                        "name": "",
-                        "placeholder": "",
-                        "label": str(form),
-                        "description": str(form),
-                        "action": "",
-                        "required": True,
-                        "options": []
-                    }
-                    form_fields.append(field_info)
+                    # Extract field information with better type detection
+                    field_info = self._extract_enhanced_field_info(form, i)
+                    if field_info:
+                        form_fields.append(field_info)
             
             # Look for input elements
             if 'inputs' in page_structure:
                 for i, input_elem in enumerate(page_structure['inputs']):
-                    field_info = {
-                        "index": i,
-                        "tag": "input",
-                        "type": input_elem.get('type', 'text'),
-                        "name": input_elem.get('name', ''),
-                        "placeholder": input_elem.get('placeholder', ''),
-                        "label": input_elem.get('label', ''),
-                        "description": str(input_elem),
-                        "action": "",
-                        "required": True,
-                        "options": []
-                    }
-                    form_fields.append(field_info)
+                    field_info = self._extract_enhanced_field_info(input_elem, i)
+                    if field_info:
+                        form_fields.append(field_info)
+            
+            # Look for select elements (dropdowns)
+            if 'selects' in page_structure:
+                for i, select_elem in enumerate(page_structure['selects']):
+                    field_info = self._extract_enhanced_field_info(select_elem, i, field_type="dropdown")
+                    if field_info:
+                        form_fields.append(field_info)
+            
+            # Look for radio button groups
+            if 'radio_groups' in page_structure:
+                for i, radio_group in enumerate(page_structure['radio_groups']):
+                    field_info = self._extract_enhanced_field_info(radio_group, i, field_type="radio")
+                    if field_info:
+                        form_fields.append(field_info)
+            
+            # Look for checkbox groups
+            if 'checkbox_groups' in page_structure:
+                for i, checkbox_group in enumerate(page_structure['checkbox_groups']):
+                    field_info = self._extract_enhanced_field_info(checkbox_group, i, field_type="checkbox")
+                    if field_info:
+                        form_fields.append(field_info)
             
             log_step(f"🔍 Extracted {len(form_fields)} fields from enhanced structure", symbol="📊")
             return form_fields
@@ -549,9 +822,269 @@ class BrowserAgent:
             log_error("Failed to extract from enhanced structure", e)
             return []
 
+    def _extract_enhanced_field_info(self, field_data: Dict[str, Any], index: int) -> Dict[str, Any]:
+        """
+        Extract enhanced field information with better question text detection and type inference.
+        """
+        try:
+            # Get the basic field data
+            field_id = field_data.get('id', index)
+            desc = field_data.get('desc', '')
+            action = field_data.get('action', '')
+            
+            # Enhanced question text extraction
+            question_text = self._extract_question_text(field_data)
+            
+            # Enhanced type detection
+            field_type = self._detect_field_type(field_data, desc, question_text)
+            
+            # Extract options for dropdown/radio/checkbox fields
+            options = self._extract_field_options(field_data)
+            
+            # Determine if this is a required field
+            required = field_data.get('required', True)
+            
+            field_info = {
+                "index": field_id,
+                "tag": self._get_field_tag(field_type),
+                "type": field_type,
+                "name": field_data.get('name', ''),
+                "placeholder": field_data.get('placeholder', ''),
+                "label": desc,
+                "description": desc,
+                "question_text": question_text,
+                "action": action,
+                "required": required,
+                "options": options,
+                "raw_html": str(field_data)
+            }
+            
+            log_step(f"🔍 Enhanced field {field_id}: {question_text} (type: {field_type}, options: {len(options)})", symbol="🔍")
+            return field_info
+            
+        except Exception as e:
+            log_error(f"Failed to extract enhanced field info for index {index}", e)
+            return None
+
+    def _extract_question_text(self, field_data: Dict[str, Any]) -> str:
+        """
+        Extract the actual question text from field data, with fallback strategies.
+        """
+        try:
+            # Strategy 1: Look for explicit question text fields
+            for key in ['question_text', 'question', 'label', 'title', 'text', 'prompt']:
+                if key in field_data and field_data[key]:
+                    text = str(field_data[key]).strip()
+                    if text and text.lower() not in ['text input', 'input', 'field', 'id']:
+                        return text
+            
+            # Strategy 2: Look for aria-label or similar accessibility attributes
+            for key in ['aria-label', 'ariaLabel', 'aria-describedby', 'ariaDescription']:
+                if key in field_data and field_data[key]:
+                    text = str(field_data[key]).strip()
+                    if text and text.lower() not in ['text input', 'input', 'field', 'id']:
+                        return text
+            
+            # Strategy 3: Check for parent/sibling text in the HTML structure
+            if 'parent_text' in field_data and field_data['parent_text']:
+                text = str(field_data['parent_text']).strip()
+                if text and text.lower() not in ['text input', 'input', 'field', 'id']:
+                    return text
+            
+            # Strategy 4: Look for surrounding text or context
+            if 'context' in field_data and field_data['context']:
+                text = str(field_data['context']).strip()
+                if text and text.lower() not in ['text input', 'input', 'field', 'id']:
+                    return text
+            
+            # Strategy 5: Use description if it's meaningful
+            desc = field_data.get('desc', '')
+            if desc and desc.lower() not in ['text input', 'input', 'field', 'id']:
+                return desc.strip()
+            
+            # Strategy 6: Look for placeholder text
+            placeholder = field_data.get('placeholder', '')
+            if placeholder:
+                return f"Field for: {placeholder}"
+            
+            # Strategy 7: Try to get more detailed information from the page
+            # For Google Forms, we need to look deeper into the DOM structure
+            raw_html = str(field_data)
+            
+            # Strategy 8: Try to extract from raw HTML using patterns
+            import re
+            
+            # Look for common Google Forms patterns
+            patterns = [
+                r'aria-label[=:]\s*["\']([^"\']+)["\']',
+                r'data-item-id[=:]\s*["\']([^"\']+)["\']',
+                r'data-params[=:]\s*["\']([^"\']+)["\']',
+                r'jsname[=:]\s*["\']([^"\']+)["\']',
+                r'role[=:]\s*["\']([^"\']+)["\']',
+                r'placeholder[=:]\s*["\']([^"\']+)["\']',
+                r'title[=:]\s*["\']([^"\']+)["\']'
+            ]
+            
+            for pattern in patterns:
+                matches = re.findall(pattern, raw_html, re.IGNORECASE)
+                for match in matches:
+                    if match and match.lower() not in ['text input', 'input', 'field', 'id', 'textbox']:
+                        return match.strip()
+            
+            # Strategy 9: Try to infer from field index and context
+            field_id = field_data.get('id', '')
+            if field_id:
+                # For Google Forms, try to get the actual question by analyzing the page structure
+                # This would require additional DOM analysis
+                return f"Form field {field_id}"
+            
+            # Strategy 10: Last resort - use a generic but descriptive name
+            return "Form input field"
+            
+        except Exception as e:
+            log_error(f"Failed to extract question text", e)
+            return "Unknown field"
+
+    def _detect_field_type(self, field_data: Dict[str, Any], desc: str, question_text: str) -> str:
+        """
+        Enhanced field type detection using multiple sources of information.
+        """
+        try:
+            # Combine all text sources for better detection
+            all_text = f"{desc} {question_text}".lower()
+            
+            # Check for specific field types in the data
+            if 'type' in field_data:
+                field_type = str(field_data['type']).lower()
+                if field_type in ['select', 'dropdown', 'radio', 'checkbox', 'textarea', 'email', 'tel', 'date', 'number']:
+                    return field_type
+            
+            # Check for options/choices (indicates dropdown/radio/checkbox)
+            if 'options' in field_data and field_data['options']:
+                if len(field_data['options']) == 1:
+                    return 'radio'
+                else:
+                    return 'dropdown'
+            
+            # Check for action type
+            action = field_data.get('action', '').lower()
+            if 'select' in action or 'dropdown' in action:
+                return 'dropdown'
+            elif 'radio' in action or 'button' in action:
+                return 'radio'
+            elif 'checkbox' in action:
+                return 'checkbox'
+            
+            # Text-based detection
+            if 'email' in all_text:
+                return 'email'
+            elif 'phone' in all_text or 'mobile' in all_text or 'tel' in all_text:
+                return 'tel'
+            elif 'date' in all_text or 'birth' in all_text or 'dob' in all_text:
+                return 'date'
+            elif 'number' in all_text or 'amount' in all_text:
+                return 'number'
+            elif 'textarea' in all_text or 'message' in all_text or 'comment' in all_text:
+                return 'textarea'
+            elif 'dropdown' in all_text or 'select' in all_text:
+                return 'dropdown'
+            elif 'radio' in all_text:
+                return 'radio'
+            elif 'checkbox' in all_text:
+                return 'checkbox'
+            elif 'file' in all_text or 'upload' in all_text:
+                return 'file'
+            elif 'url' in all_text or 'website' in all_text:
+                return 'url'
+            else:
+                # Add type mapping block to ensure field type is never empty
+                desc_lower = desc.lower()
+                if "text" in desc_lower:
+                    field_type = "text"
+                elif "radio" in desc_lower:
+                    field_type = "radio"
+                elif "check" in desc_lower:
+                    field_type = "checkbox"
+                elif "drop" in desc_lower:
+                    field_type = "dropdown"
+                else:
+                    field_type = "text"  # default fallback
+                
+                return field_type
+                
+        except Exception as e:
+            log_error("Failed to detect field type", e)
+            return 'text'
+
+    def _extract_field_options(self, field_data: Dict[str, Any]) -> List[str]:
+        """
+        Extract options from field data for dropdowns, radio buttons, and checkboxes.
+        Enhanced to handle various data formats.
+        """
+        options = []
+        
+        try:
+            # Check for options in various formats
+            if 'options' in field_data:
+                options = field_data['options']
+            elif 'choices' in field_data:
+                options = field_data['choices']
+            elif 'values' in field_data:
+                options = field_data['values']
+            elif 'items' in field_data:
+                options = field_data['items']
+            
+            # Ensure options are strings and filter out empty ones
+            if options:
+                options = [str(opt).strip() for opt in options if opt and str(opt).strip()]
+            
+            # If no options found, try to extract from raw HTML
+            if not options:
+                raw_html = str(field_data)
+                import re
+                # Look for option patterns in HTML
+                option_patterns = [
+                    r'<option[^>]*>([^<]+)</option>',
+                    r'value[:\s]*["\']([^"\']+)["\']',
+                    r'text[:\s]*["\']([^"\']+)["\']'
+                ]
+                
+                for pattern in option_patterns:
+                    matches = re.findall(pattern, raw_html, re.IGNORECASE)
+                    for match in matches:
+                        if match.strip() and match.strip().lower() not in ['select', 'option', 'choose']:
+                            options.append(match.strip())
+            
+            return options
+            
+        except Exception as e:
+            log_error("Failed to extract field options", e)
+            return []
+
+    def _get_field_tag(self, field_type: str) -> str:
+        """
+        Get HTML tag for field type.
+        """
+        tag_mapping = {
+            'dropdown': 'select',
+            'select': 'select',
+            'radio': 'input',
+            'checkbox': 'input',
+            'textarea': 'textarea',
+            'file': 'input',
+            'email': 'input',
+            'tel': 'input',
+            'date': 'input',
+            'number': 'input',
+            'url': 'input',
+            'text': 'input'
+        }
+        return tag_mapping.get(field_type, 'input')
+
     def _convert_elements_to_llm_format(self, elements_result: Any) -> List[Dict[str, Any]]:
         """
         Convert browser elements result to structured format for LLM processing.
+        Enhanced to extract actual question text and detect field types properly.
         """
         form_fields = []
         
@@ -565,93 +1098,17 @@ class BrowserAgent:
                 for form_index, form in enumerate(forms):
                     log_step(f"🔍 Form {form_index}: {form}", symbol="🔍")
                     
-                    # Check if form has individual fields
-                    if 'fields' in form:
-                        # Process individual fields within the form
-                        for field_index, field in enumerate(form['fields']):
-                            field_info = {
-                                "index": field.get('id', field_index),
-                                "tag": "input",  # Default tag
-                                "type": self._infer_field_type(field.get('desc', '')),
-                                "name": field.get('name', ''),
-                                "placeholder": field.get('placeholder', ''),
-                                "label": field.get('desc', ''),
-                                "description": field.get('desc', ''),
-                                "action": field.get('action', ''),
-                                "required": field.get('required', True),
-                                "options": field.get('options', [])
-                            }
-                            
-                            # Infer field type from description
-                            desc_lower = field.get('desc', '').lower()
-                            if 'dropdown' in desc_lower or 'select' in desc_lower:
-                                field_info["tag"] = "select"
-                                field_info["type"] = "select"
-                            elif 'radio' in desc_lower or 'button' in desc_lower:
-                                field_info["tag"] = "input"
-                                field_info["type"] = "radio"
-                            elif 'textarea' in desc_lower or 'message' in desc_lower:
-                                field_info["tag"] = "textarea"
-                                field_info["type"] = "textarea"
-                            elif 'email' in desc_lower:
-                                field_info["type"] = "email"
-                            elif 'phone' in desc_lower or 'mobile' in desc_lower:
-                                field_info["type"] = "tel"
-                            elif 'date' in desc_lower or 'birth' in desc_lower:
-                                field_info["type"] = "date"
-                            
-                            form_fields.append(field_info)
-                    else:
-                        # Treat the form itself as a field (legacy format)
-                        field_info = {
-                            "index": form.get('id', form_index),
-                            "tag": "input",  # Default tag
-                            "type": self._infer_field_type(form.get('desc', '')),
-                            "name": "",
-                            "placeholder": "",
-                            "label": form.get('desc', ''),
-                            "description": form.get('desc', ''),
-                            "action": form.get('action', ''),
-                            "required": True,  # Assume required for form fields
-                            "options": []  # For dropdowns/selects
-                        }
-                        
-                        # Infer field type from description
-                        desc_lower = form.get('desc', '').lower()
-                        if 'dropdown' in desc_lower or 'select' in desc_lower:
-                            field_info["tag"] = "select"
-                            field_info["type"] = "select"
-                        elif 'radio' in desc_lower or 'button' in desc_lower:
-                            field_info["tag"] = "input"
-                            field_info["type"] = "radio"
-                        elif 'textarea' in desc_lower or 'message' in desc_lower:
-                            field_info["tag"] = "textarea"
-                            field_info["type"] = "textarea"
-                        elif 'email' in desc_lower:
-                            field_info["type"] = "email"
-                        elif 'phone' in desc_lower or 'mobile' in desc_lower:
-                            field_info["type"] = "tel"
-                        elif 'date' in desc_lower or 'birth' in desc_lower:
-                            field_info["type"] = "date"
-                        
+                    # Use enhanced field extraction
+                    field_info = self._extract_enhanced_field_info(form, form_index)
+                    if field_info:
                         form_fields.append(field_info)
                 
                 # Also check for individual input elements that might not be in forms
                 inputs = elements_result.get('inputs', [])
                 for input_index, input_field in enumerate(inputs):
-                    field_info = {
-                        "index": input_field.get('id', len(form_fields) + input_index),
-                        "tag": "input",
-                        "type": self._infer_field_type(input_field.get('desc', '')),
-                        "name": input_field.get('name', ''),
-                        "placeholder": input_field.get('placeholder', ''),
-                        "label": input_field.get('desc', ''),
-                        "description": input_field.get('desc', ''),
-                        "action": "",
-                        "required": input_field.get('required', True),
-                        "options": []
-                    }
-                    form_fields.append(field_info)
+                    field_info = self._extract_enhanced_field_info(input_field, len(form_fields) + input_index)
+                    if field_info:
+                        form_fields.append(field_info)
             
             # Handle string format (legacy)
             elif isinstance(elements_result, str):
@@ -666,6 +1123,7 @@ class BrowserAgent:
                             "placeholder": "",
                             "label": line.strip(),
                             "description": line.strip(),
+                            "question_text": line.strip(),
                             "action": "",
                             "required": True,
                             "options": []
@@ -696,7 +1154,7 @@ class BrowserAgent:
         elif 'textarea' in desc_lower or 'message' in desc_lower or 'comment' in desc_lower:
             return 'textarea'
         elif 'dropdown' in desc_lower or 'select' in desc_lower:
-            return 'select'
+            return 'dropdown'
         elif 'radio' in desc_lower:
             return 'radio'
         elif 'checkbox' in desc_lower:
@@ -733,58 +1191,52 @@ class BrowserAgent:
 
     def _create_llm_field_mapping_prompt(self, instruction: str, form_structure: List[Dict[str, Any]]) -> str:
         """
-        Create prompt for LLM field mapping.
+        Create robust prompt for LLM field mapping, using question_text, type, and options for each field.
         """
-        prompt = f"""You are a smart form-filler assistant specializing in Google Forms and web forms. Based on the user's instruction and the list of form fields, match the appropriate values to the right input fields by their index. Do not fabricate fields. Return results in this JSON format:
+        prompt = f"""
+    You are an expert form-filling assistant.
 
-```json
-[
-  {{ "index": <form_field_index>, "value": "<value to fill>", "field_name": "<field_name>", "confidence": <0.0-1.0> }}
-]
-```
+    You are given:
+    1. A user instruction: "{instruction}"
+    2. A list of form fields, each with:
+    - index
+    - question_text (visible field label or question)
+    - type (text, dropdown, radio, checkbox, etc.)
+    - options (if any, for selection fields)
 
-User instruction:
-{instruction}
+    Goal:
+    - Match each field to the appropriate value from the instruction using semantic understanding.
+    - For fields labeled generically (e.g., "Form field 2"), look for more meaningful labels in `raw_html` or nearby text.
+    - For dropdown/radio/checkbox, match value to one of the options (use fuzzy match if needed).
+    - For text fields, extract value as-is from instruction.
+    - Return a JSON array with fields: index, value, confidence (0–1), reason, question_text, field_type.
 
-Form fields:
-```json
-{json.dumps(form_structure, indent=2, cls=CustomJSONEncoder)}
-```
+    Use examples like:
+    - Question: "What is your name?" + Instruction: "name shubhangi mishra" → "shubhangi mishra"
+    - Question: "Are you married?" + Instruction: "yes i am married" → "yes"
+    - Question: "Which course are you taking?" + Instruction: "EAGv1 course" → "EAGv1"
 
-Instructions:
-1. Analyze the user instruction to extract relevant data (names, emails, dates, etc.)
-2. Match each piece of data to the most appropriate form field based on:
-   - Field labels and descriptions
-   - Field types (email, date, text, etc.)
-   - Field positions and context
-   - Semantic similarity
-3. For Google Forms, look for:
-   - Name fields (first name, last name, full name)
-   - Email fields (email, email address)
-   - Date fields (date of birth, birth date, DOB)
-   - Text fields (course names, descriptions)
-   - Radio buttons (yes/no questions, marital status)
-4. Only include fields that should be filled
-5. Provide a confidence score (0.0-1.0) for each mapping
-6. Use the exact field index from the form structure
-7. Return valid JSON only
+    Do not return empty values. Only include mappings you are confident about.
 
-Example output:
-```json
-[
-  {{ "index": 0, "value": "John Doe", "field_name": "name", "confidence": 0.95 }},
-  {{ "index": 1, "value": "john@example.com", "field_name": "email", "confidence": 0.98 }},
-  {{ "index": 2, "value": "1992-10-03", "field_name": "date_of_birth", "confidence": 0.90 }}
-]
-```
-
-Return the JSON array:"""
+    Output JSON:
+    [
+    {{
+        "index": 0,
+        "value": "shubhangi mishra",
+        "confidence": 0.9,
+        "reason": "Mapped from 'name' in instruction to 'What is your name?'",
+        "question_text": "What is your name?",
+        "field_type": "text"
+    }},
+    ...
+    ]
+    """
 
         return prompt
 
     def _parse_llm_field_mapping_response(self, response: str) -> List[Dict[str, Any]]:
         """
-        Parse LLM response to extract field mappings.
+        Parse LLM response to extract field mappings, including reason and confidence.
         """
         try:
             # Extract JSON from response
@@ -816,7 +1268,10 @@ Return the JSON array:"""
                         'index': mapping['index'],
                         'value': mapping['value'],
                         'field_name': mapping.get('field_name', ''),
-                        'confidence': mapping.get('confidence', 0.5)
+                        'confidence': mapping.get('confidence', 0.5),
+                        'field_type': mapping.get('field_type', 'text'),
+                        'reason': mapping.get('reason', ''),
+                        'question_text': mapping.get('question_text', '')
                     })
             
             log_step(f"✅ Parsed {len(valid_mappings)} valid field mappings", symbol="✅")
@@ -828,7 +1283,7 @@ Return the JSON array:"""
 
     async def _execute_field_filling(self, field_mapping: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
-        Execute the field filling instructions from LLM.
+        Execute the field filling instructions from LLM with enhanced field type handling and logging of mapping reasons.
         """
         log_step(f"📝 Executing field filling for {len(field_mapping)} fields", symbol="📝")
         
@@ -840,28 +1295,26 @@ Return the JSON array:"""
                 field_value = mapping['value']
                 field_name = mapping.get('field_name', '')
                 confidence = mapping.get('confidence', 0.5)
+                field_type = mapping.get('field_type', 'text')
+                reason = mapping.get('reason', '')
+                question_text = mapping.get('question_text', 'unknown')
                 
-                log_step(f"📝 Filling field {field_index} ({field_name}) with '{field_value}' (confidence: {confidence})", symbol="📝")
+                # ✅ Add debug logs for better field matching trace
+                log_step(f"🔗 Field match: '{question_text}' → '{field_value}' (confidence: {confidence})", symbol="🧠")
                 
-                # Execute the fill action
+                log_step(f"📝 Filling field {field_index} ({field_name}) with '{field_value}' (type: {field_type}, confidence: {confidence}, reason: {reason})", symbol="📝")
+                
+                # Execute the fill action based on field type
                 if self.multi_mcp:
-                    # Try to click the field first to focus it
-                    try:
-                        await self.multi_mcp.function_wrapper("click_element_by_index", field_index)
-                        log_step(f"✅ Clicked field {field_index} to focus", symbol="✅")
-                    except Exception as click_error:
-                        log_step(f"⚠️ Could not click field {field_index}: {click_error}", symbol="⚠️")
-                    
-                    # Wait a moment for focus
-                    await self.multi_mcp.function_wrapper("wait", 1)
-                    
-                    # Fill the field
-                    result = await self.multi_mcp.function_wrapper("input_text", field_index, field_value)
+                    result = await self._fill_field_by_type(field_index, field_value, field_type, field_name)
                     fill_results.append({
                         'field_index': field_index,
                         'field_name': field_name,
                         'value': field_value,
                         'confidence': confidence,
+                        'field_type': field_type,
+                        'reason': reason,
+                        'question_text': question_text,
                         'status': 'success',
                         'result': result
                     })
@@ -876,8 +1329,11 @@ Return the JSON array:"""
                         'field_name': field_name,
                         'value': field_value,
                         'confidence': confidence,
+                        'field_type': field_type,
+                        'reason': reason,
+                        'question_text': question_text,
                         'status': 'success',
-                        'result': {'message': f'Mock fill: {field_value}'}
+                        'result': {'message': f'Mock fill: {field_value} (type: {field_type})'}
                     })
                 
             except Exception as e:
@@ -887,73 +1343,353 @@ Return the JSON array:"""
                     'field_name': field_name,
                     'value': field_value,
                     'confidence': confidence,
+                    'field_type': field_type,
+                    'reason': reason,
+                    'question_text': question_text,
                     'status': 'error',
                     'result': str(e)
                 })
         
         return fill_results
 
-    async def _submit_form(self) -> Dict[str, Any]:
+    async def _fill_field_by_type(self, field_index: int, field_value: str, field_type: str, field_name: str) -> Dict[str, Any]:
         """
-        Submit the form after filling all fields.
+        Fill a field based on its type with enhanced type detection and option handling.
         """
-        log_step("📤 Submitting form", symbol="📤")
-        
         try:
-            if self.multi_mcp:
-                # Try to find and click submit button
-                submit_result = await self.multi_mcp.function_wrapper("click_element_by_index", 0)  # Default to first element
-                log_step("✅ Form submitted successfully", symbol="✅")
-                return {
-                    'status': 'success',
-                    'result': submit_result
-                }
+            log_step(f"📝 Filling field {field_index} ({field_type}) with '{field_value}' (confidence: {field_name})", symbol="📝")
+            
+            # Handle date field conversion
+            if field_type == 'date':
+                field_value = self._convert_date_format(field_value)
+                log_step(f"📅 Converted date format: '{field_value}'", symbol="📅")
+            
+            # Click the field to focus first
+            await self.multi_mcp.function_wrapper("click_element_by_index", field_index)
+            
+            # Handle different field types
+            if field_type in ['dropdown', 'select']:
+                return await self._fill_dropdown_field(field_index, field_value, field_name)
+            elif field_type == 'radio':
+                return await self._fill_radio_field(field_index, field_value, field_name)
+            elif field_type == 'checkbox':
+                return await self._fill_checkbox_field(field_index, field_value, field_name)
+            elif field_type == 'textarea':
+                return await self._fill_textarea_field(field_index, field_value, field_name)
+            elif field_type in ['email', 'tel', 'date', 'number', 'url', 'text']:
+                return await self._fill_text_field(field_index, field_value, field_name)
             else:
-                # Mock result for testing
-                return {
-                    'status': 'success',
-                    'result': {'message': 'Mock form submission'}
-                }
+                # Default to text field
+                log_step(f"⚠️ Unknown field type '{field_type}', treating as text", symbol="⚠️")
+                return await self._fill_text_field(field_index, field_value, field_name)
                 
         except Exception as e:
-            log_error("Failed to submit form", e)
+            log_error(f"Failed to fill field {field_index} by type", e)
+            return {'error': str(e)}
+
+    async def _fill_dropdown_field(self, field_index: int, field_value: str, field_name: str) -> Dict[str, Any]:
+        """
+        Fill a dropdown field by getting options and selecting the best match.
+        """
+        try:
+            log_step(f"📋 Filling dropdown field {field_index} with '{field_value}'", symbol="📋")
+            
+            # Get dropdown options
+            options_result = await self.multi_mcp.function_wrapper("get_dropdown_options", field_index)
+            log_step(f"📋 Available options: {options_result}", symbol="📋")
+            
+            # Try to select the option
+            select_result = await self.multi_mcp.function_wrapper("select_dropdown_option", field_index, field_value)
+            
             return {
-                'status': 'error',
-                'result': str(e)
+                'type': 'dropdown',
+                'value': field_value,
+                'options_result': options_result,
+                'select_result': select_result
             }
+            
+        except Exception as e:
+            log_error(f"Failed to fill dropdown field {field_index}", e)
+            return {'error': str(e)}
+
+    async def _fill_radio_field(self, field_index: int, field_value: str, field_name: str) -> Dict[str, Any]:
+        """
+        Fill a radio button field by clicking the appropriate option.
+        """
+        try:
+            log_step(f"🔘 Filling radio field {field_index} with '{field_value}'", symbol="🔘")
+            
+            # For radio buttons, we need to find the correct option and click it
+            # This might require additional logic to find the right radio button
+            # For now, try clicking the field and then sending the value
+            
+            # Click the field to focus
+            await self.multi_mcp.function_wrapper("click_element_by_index", field_index)
+            
+            # Try to send the value (this might work for some radio implementations)
+            result = await self.multi_mcp.function_wrapper("input_text", field_index, field_value)
+            
+            return {
+                'type': 'radio',
+                'value': field_value,
+                'result': result
+            }
+            
+        except Exception as e:
+            log_error(f"Failed to fill radio field {field_index}", e)
+            return {'error': str(e)}
+
+    async def _fill_checkbox_field(self, field_index: int, field_value: str, field_name: str) -> Dict[str, Any]:
+        """
+        Fill a checkbox field by checking/unchecking based on the value.
+        """
+        try:
+            log_step(f"☑️ Filling checkbox field {field_index} with '{field_value}'", symbol="☑️")
+            
+            # For checkboxes, we need to determine if it should be checked
+            should_check = self._should_check_checkbox(field_value)
+            
+            if should_check:
+                # Click to check the checkbox
+                result = await self.multi_mcp.function_wrapper("click_element_by_index", field_index)
+            else:
+                # Click to uncheck the checkbox (if it's already checked)
+                result = await self.multi_mcp.function_wrapper("click_element_by_index", field_index)
+            
+            return {
+                'type': 'checkbox',
+                'value': field_value,
+                'checked': should_check,
+                'result': result
+            }
+            
+        except Exception as e:
+            log_error(f"Failed to fill checkbox field {field_index}", e)
+            return {'error': str(e)}
+
+    async def _fill_textarea_field(self, field_index: int, field_value: str, field_name: str) -> Dict[str, Any]:
+        """
+        Fill a textarea field with the provided value.
+        """
+        try:
+            log_step(f"📝 Filling textarea field {field_index} with '{field_value}'", symbol="📝")
+            
+            # Click the field to focus first
+            await self.multi_mcp.function_wrapper("click_element_by_index", field_index)
+            await self.multi_mcp.function_wrapper("wait", 0.5)
+            
+            # Clear the field by selecting all and deleting
+            await self.multi_mcp.function_wrapper("send_keys", "Control+a")
+            await self.multi_mcp.function_wrapper("wait", 0.2)
+            await self.multi_mcp.function_wrapper("send_keys", "Delete")
+            await self.multi_mcp.function_wrapper("wait", 0.2)
+            
+            # Fill the textarea
+            result = await self.multi_mcp.function_wrapper("input_text", field_index, field_value)
+            
+            return {
+                'type': 'textarea',
+                'value': field_value,
+                'result': result
+            }
+            
+        except Exception as e:
+            log_error(f"Failed to fill textarea field {field_index}", e)
+            return {'error': str(e)}
+
+    async def _fill_text_field(self, field_index: int, field_value: str, field_name: str) -> Dict[str, Any]:
+        """
+        Fill a text field with the provided value.
+        """
+        try:
+            log_step(f"📝 Filling text field {field_index} with '{field_value}'", symbol="📝")
+            
+            # Click the field to focus first
+            await self.multi_mcp.function_wrapper("click_element_by_index", field_index)
+            await self.multi_mcp.function_wrapper("wait", 0.5)
+            
+            # Clear the field by selecting all and deleting
+            await self.multi_mcp.function_wrapper("send_keys", "Control+a")
+            await self.multi_mcp.function_wrapper("wait", 0.2)
+            await self.multi_mcp.function_wrapper("send_keys", "Delete")
+            await self.multi_mcp.function_wrapper("wait", 0.2)
+            
+            # Fill the field
+            result = await self.multi_mcp.function_wrapper("input_text", field_index, field_value)
+            
+            return {
+                'type': 'text',
+                'value': field_value,
+                'result': result
+            }
+            
+        except Exception as e:
+            log_error(f"Failed to fill text field {field_index}", e)
+            return {'error': str(e)}
+
+    def _should_check_checkbox(self, field_value: str) -> bool:
+        """
+        Determine if a checkbox should be checked based on the field value.
+        """
+        if not field_value:
+            return False
+        
+        # Convert to lowercase for comparison
+        value_lower = str(field_value).lower().strip()
+        
+        # Positive values that should check the checkbox
+        positive_values = ['yes', 'true', '1', 'on', 'checked', 'agree', 'accept', 'confirm']
+        
+        return value_lower in positive_values
+
+    def _convert_date_format(self, user_input_str: str) -> str:
+        """
+        Convert various date formats to a standardized format using dateutil.parser.
+        This makes date field handling more resilient.
+        """
+        try:
+            if not user_input_str:
+                return user_input_str
+            
+            # Try to parse the date using dateutil.parser
+            parsed_date = parse(user_input_str)
+            # Convert to DD/MM/YYYY format
+            return parsed_date.strftime('%d/%m/%Y')
+        except Exception as e:
+            # Fallback if parse fails
+            log_step(f"⚠️ Date parsing failed for '{user_input_str}', using original value: {e}", symbol="⚠️")
+            return user_input_str
 
     def _is_form_filling_task(self, instruction: str, tool_name: str, parameters: Dict[str, Any]) -> bool:
         """
-        Detect if the current task is a form filling task.
+        Detect if the current task is a form filling task with enhanced detection.
         """
         instruction_lower = instruction.lower()
         
         # Check for form-related keywords in instruction
         form_keywords = [
             'fill form', 'submit form', 'complete form', 'fill out form',
-            'registration form', 'contact form', 'survey form', 'application form',
-            'enter data', 'input data', 'fill data'
+            'fill in form', 'enter form', 'fill up form', 'fill the form',
+            'submit', 'enter', 'fill', 'complete', 'fill out', 'fill in',
+            'registration', 'sign up', 'signup', 'register', 'application',
+            'survey', 'questionnaire', 'feedback', 'contact form'
         ]
         
+        # Check for Google Forms URLs
+        google_forms_indicators = [
+            'forms.gle', 'docs.google.com/forms', 'google.com/forms',
+            'forms.google.com', 'drive.google.com/forms'
+        ]
+        
+        # Check for common form hosting platforms
+        form_platforms = [
+            'typeform.com', 'surveymonkey.com', 'jotform.com', 'wufoo.com',
+            'formspree.io', 'netlify.com/forms', 'form.io', '123formbuilder.com'
+        ]
+        
+        # Check instruction for form keywords
         has_form_keywords = any(keyword in instruction_lower for keyword in form_keywords)
         
-        # Check if we're on a form page (Google Forms, etc.)
-        current_url = parameters.get('url', '')
-        is_form_page = any(form_domain in current_url.lower() for form_domain in [
-            'forms.gle', 'forms.google', 'docs.google.com/forms',
-            'survey', 'form', 'registration', 'contact'
-        ])
+        # Check for form-related tools
+        form_tools = ['input_text', 'get_interactive_elements', 'click_element_by_index']
+        is_form_tool = tool_name in form_tools
         
-        # For navigation tools, only trigger if we have form keywords AND are going to a form page
-        if tool_name in ['open_tab', 'go_to_url']:
-            return has_form_keywords and is_form_page
+        # Check for form-related parameters
+        form_parameters = ['text', 'index', 'option_text']
+        has_form_parameters = any(param in parameters for param in form_parameters)
         
-        # For form interaction tools, require form keywords or form page context
-        if tool_name in ['input_text', 'get_interactive_elements', 'click_element_by_index']:
-            return has_form_keywords or is_form_page
+        # Check if we're on a form page (if we have browser state)
+        is_form_page = self._detect_form_page()
         
-        # For other tools, require more specific conditions
+        # Enhanced detection logic
+        if has_form_keywords:
+            log_step(f"✅ Form filling task detected by keywords: {[k for k in form_keywords if k in instruction_lower]}", symbol="🔍")
+            return True
+        
+        if is_form_tool and has_form_parameters:
+            log_step(f"✅ Form filling task detected by tool usage: {tool_name}", symbol="🔍")
+            return True
+        
+        if is_form_page:
+            log_step("✅ Form filling task detected by page analysis", symbol="🔍")
+            return True
+        
+        # Check for Google Forms specifically
+        if any(indicator in instruction_lower for indicator in google_forms_indicators):
+            log_step("✅ Google Forms task detected", symbol="🔍")
+            return True
+        
+        # Check for form platforms
+        if any(platform in instruction_lower for platform in form_platforms):
+            log_step(f"✅ Form platform task detected", symbol="🔍")
+            return True
+        
         return False
+
+    def _detect_form_page(self) -> bool:
+        """
+        Detect if the current page is likely a form page.
+        """
+        try:
+            # This would require access to the current page state
+            # For now, we'll return False and let the other detection methods handle it
+            # In a full implementation, this would analyze the current page content
+            return False
+        except Exception as e:
+            log_error("Failed to detect form page", e)
+            return False
+
+    async def _enhance_form_detection(self) -> Dict[str, Any]:
+        """
+        Enhanced form detection with detailed analysis.
+        """
+        try:
+            if not self.multi_mcp:
+                return {"is_form": False, "reason": "No MCP connection"}
+            
+            # Get page structure for analysis
+            page_structure = await self.multi_mcp.function_wrapper("get_enhanced_page_structure")
+            
+            if not isinstance(page_structure, dict):
+                return {"is_form": False, "reason": "Invalid page structure"}
+            
+            # Analyze for form indicators
+            form_indicators = {
+                "has_forms": "forms" in page_structure and len(page_structure.get("forms", [])) > 0,
+                "has_inputs": "inputs" in page_structure and len(page_structure.get("inputs", [])) > 0,
+                "has_selects": "selects" in page_structure and len(page_structure.get("selects", [])) > 0,
+                "has_radio_groups": "radio_groups" in page_structure and len(page_structure.get("radio_groups", [])) > 0,
+                "has_checkbox_groups": "checkbox_groups" in page_structure and len(page_structure.get("checkbox_groups", [])) > 0
+            }
+            
+            # Count total form elements
+            total_form_elements = sum(len(page_structure.get(key, [])) for key in ["forms", "inputs", "selects", "radio_groups", "checkbox_groups"])
+            
+            # Determine if this is a form page
+            is_form = any(form_indicators.values()) or total_form_elements > 0
+            
+            # Get current URL for additional analysis
+            current_url = ""
+            try:
+                browser_session = await self.multi_mcp.function_wrapper("get_session_snapshot")
+                # Extract URL from session snapshot if available
+                if isinstance(browser_session, str) and "url" in browser_session.lower():
+                    # This is a simplified extraction - in practice, you'd parse the session properly
+                    current_url = "detected"
+            except:
+                pass
+            
+            return {
+                "is_form": is_form,
+                "form_indicators": form_indicators,
+                "total_form_elements": total_form_elements,
+                "current_url": current_url,
+                "reason": "Form elements detected" if is_form else "No form elements found"
+            }
+            
+        except Exception as e:
+            log_error("Failed to enhance form detection", e)
+            return {"is_form": False, "reason": f"Error: {str(e)}"}
 
     def _convert_parameters_to_positional_args(self, tool_name: str, parameters: Dict[str, Any]) -> List[Any]:
         """
@@ -986,41 +1722,225 @@ Return the JSON array:"""
 
     def _extract_from_markdown(self, markdown_content: str) -> List[Dict[str, Any]]:
         """
-        Extract form fields from markdown content.
+        Extract form fields from markdown content using heuristics for question text.
         """
         form_fields = []
-        
         try:
-            lines = markdown_content.split('\n')
-            field_index = 0
-            
-            for line in lines:
-                line = line.strip()
-                if not line:
-                    continue
+            lines = [line.strip() for line in markdown_content.split('\n') if line.strip()]
+            # Heuristic: lines ending with '?' or ':' or that look like prompts
+            question_lines = [
+                line for line in lines
+                if line.endswith('?') or line.endswith(':') or (len(line) < 120 and any(w in line.lower() for w in ['name', 'email', 'phone', 'address', 'date', 'question', 'option', 'choose', 'select']))
+            ]
+            # Remove duplicates while preserving order
+            seen = set()
+            question_lines = [x for x in question_lines if not (x in seen or seen.add(x))]
+            # Assign each question line to a field in order
+            for idx, q in enumerate(question_lines):
+                field_info = {
+                    "index": idx,
+                    "tag": "input",
+                    "type": self._infer_field_type(q),
+                    "name": "",
+                    "placeholder": "",
+                    "label": q,
+                    "description": q,
+                    "question_text": q,
+                    "action": "",
+                    "required": True,
+                    "options": []
+                }
+                form_fields.append(field_info)
+            log_step(f"🔍 Extracted {len(form_fields)} fields from markdown (question heuristics)", symbol="📊")
+            return form_fields
+        except Exception as e:
+            log_error("Failed to extract from markdown", e)
+            return []
+
+    def _enhance_question_text_with_page_content(self, field_info: Dict[str, Any], page_info: Dict[str, Any]) -> str:
+        """
+        Enhance question text using page content analysis, including markdown question heuristics.
+        """
+        try:
+            current_question = field_info.get('question_text', '')
+            # If we already have a meaningful question, return it
+            if current_question and current_question.lower() not in ['id', 'text input', 'input', 'field', f"form field {field_info.get('index', 'unknown')}"]:
+                return current_question
+            # Try to extract from markdown content using question heuristics
+            if 'markdown_content' in page_info:
+                markdown = page_info['markdown_content']
+                lines = [line.strip() for line in markdown.split('\n') if line.strip()]
+                question_lines = [
+                    line for line in lines
+                    if line.endswith('?') or line.endswith(':') or (len(line) < 120 and any(w in line.lower() for w in ['name', 'email', 'phone', 'address', 'date', 'question', 'option', 'choose', 'select']))
+                ]
+                # Remove duplicates while preserving order
+                seen = set()
+                question_lines = [x for x in question_lines if not (x in seen or seen.add(x))]
+                idx = field_info.get('index', 0)
+                if idx < len(question_lines):
+                    return question_lines[idx]
+            # Fallback to previous logic (session snapshot, etc.)
+            # Try to extract from session snapshot
+            if 'session_snapshot' in page_info:
+                snapshot = page_info['session_snapshot']
+                if isinstance(snapshot, str):
+                    import re
+                    patterns = [
+                        r'aria-label[=:]\s*["\']([^"\']+)["\']',
+                        r'placeholder[=:]\s*["\']([^"\']+)["\']',
+                        r'title[=:]\s*["\']([^"\']+)["\']',
+                        r'data-params[=:]\s*["\']([^"\']+)["\']'
+                    ]
+                    for pattern in patterns:
+                        matches = re.findall(pattern, snapshot, re.IGNORECASE)
+                        for match in matches:
+                            if match and match.lower() not in ['text input', 'input', 'field', 'id']:
+                                return match.strip()
+            # Fallback to current question or generic description
+            if current_question and current_question != 'id':
+                return current_question
+            return f"Form field {field_info.get('index', 'unknown')}"
+        except Exception as e:
+            log_error("Failed to enhance question text", e)
+            return field_info.get('question_text', 'Unknown field')
+
+    async def _submit_form(self) -> Dict[str, Any]:
+        """
+        Submit the form after filling all fields. Tries to find a submit button by text if possible.
+        """
+        log_step("📤 Submitting form", symbol="📤")
+        try:
+            if self.multi_mcp:
+                # Try to find a submit button by text (improve this logic as needed)
+                # This assumes you have a tool to get all buttons or interactive elements
+                try:
+                    elements_result = await self.multi_mcp.function_wrapper("get_interactive_elements", True, True, True)
+                    submit_index = None
+                    if isinstance(elements_result, dict):
+                        # Try to find a button with text 'Submit', 'Send', etc.
+                        buttons = elements_result.get('buttons', [])
+                        
+                        # ✅ Only target real form submission buttons
+                        for button in buttons:
+                            label = button.get("text", "").lower()
+                            
+                            # ✅ Skip Google authentication buttons
+                            if "sign in" in label.lower() or "sign into" in label.lower():
+                                log_step(f"⚠️ Skipping Google auth button: {label}", symbol="⚠️")
+                                continue
+                            
+                            # ✅ Only target real form submission buttons
+                            if any(keyword in label for keyword in ["submit", "send", "next", "done", "submit form"]):
+                                if not any(bad in label for bad in ["google", "drive", "sign in", "sign into"]):
+                                    submit_index = button.get('id')
+                                    log_step(f"📤 Found form submission button: {label}", symbol="✅")
+                                    break
+                        
+                        # Fallback: try to find a button with 'submit' in text
+                        if submit_index is None:
+                            for btn in buttons:
+                                btn_text = btn.get('text', '').strip().lower()
+                                # Skip Google auth buttons in fallback too
+                                if "sign in" in btn_text or "sign into" in btn_text:
+                                    continue
+                                if 'submit' in btn_text or 'send' in btn_text:
+                                    submit_index = btn.get('id')
+                                    log_step(f"📤 Found fallback submit button: {btn_text}", symbol="✅")
+                                    break
+                    
+                    # Fallback: use index 0 if nothing found
+                    if submit_index is None:
+                        submit_index = 0
+                        log_step("⚠️ No submit button found, using index 0", symbol="⚠️")
+                    
+                    log_step(f"📤 Clicking submit button at index {submit_index}", symbol="📤")
+                    submit_result = await self.multi_mcp.function_wrapper("click_element_by_index", submit_index)
+                    
+                except Exception as e:
+                    log_step(f"⚠️ Could not find submit button by text, defaulting to index 0: {e}", symbol="⚠️")
+                    submit_result = await self.multi_mcp.function_wrapper("click_element_by_index", 0)
                 
-                # Look for form field patterns in markdown
-                if any(keyword in line.lower() for keyword in ['input', 'text', 'email', 'name', 'date', 'phone', 'question']):
-                    field_info = {
-                        "index": field_index,
-                        "tag": "input",
-                        "type": self._infer_field_type(line),
-                        "name": "",
-                        "placeholder": "",
-                        "label": line,
-                        "description": line,
-                        "action": "",
-                        "required": True,
-                        "options": []
-                    }
-                    form_fields.append(field_info)
-                    field_index += 1
+                log_step("✅ Form submitted successfully", symbol="✅")
+                return {'status': 'success', 'result': submit_result}
+            else:
+                return {'status': 'success', 'result': {'message': 'Mock form submission'}}
+        except Exception as e:
+            log_error("Failed to submit form", e)
+            return {'status': 'error', 'result': str(e)}
+
+    async def _get_detailed_form_info(self) -> List[Dict[str, Any]]:
+        """
+        Get detailed form information by analyzing the page content and DOM structure.
+        This method tries to extract actual question text from Google Forms and other complex forms.
+        """
+        try:
+            if not self.multi_mcp:
+                return []
             
-            log_step(f"🔍 Extracted {len(form_fields)} fields from markdown", symbol="📊")
+            # Get comprehensive page information
+            page_info = {}
+            
+            # Try to get enhanced page structure
+            try:
+                enhanced_structure = await self.multi_mcp.function_wrapper("get_enhanced_page_structure")
+                if isinstance(enhanced_structure, dict):
+                    page_info['enhanced_structure'] = enhanced_structure
+            except Exception as e:
+                log_step(f"⚠️ Enhanced page structure failed: {e}", symbol="⚠️")
+            
+            # Try to get comprehensive markdown
+            try:
+                markdown_content = await self.multi_mcp.function_wrapper("get_comprehensive_markdown")
+                if isinstance(markdown_content, str):
+                    page_info['markdown_content'] = markdown_content
+            except Exception as e:
+                log_step(f"⚠️ Markdown content failed: {e}", symbol="⚠️")
+            
+            # Try to get session snapshot
+            try:
+                session_snapshot = await self.multi_mcp.function_wrapper("get_session_snapshot")
+                if session_snapshot:
+                    page_info['session_snapshot'] = session_snapshot
+            except Exception as e:
+                log_step(f"⚠️ Session snapshot failed: {e}", symbol="⚠️")
+            
+            # Get interactive elements
+            try:
+                interactive_elements = await self.multi_mcp.function_wrapper("get_interactive_elements", True, True, True)
+                if isinstance(interactive_elements, dict):
+                    page_info['interactive_elements'] = interactive_elements
+            except Exception as e:
+                log_step(f"⚠️ Interactive elements failed: {e}", symbol="⚠️")
+            
+            # Analyze the collected information to extract form details
+            form_fields = []
+            
+            # Extract from interactive elements
+            if 'interactive_elements' in page_info:
+                elements = page_info['interactive_elements']
+                forms = elements.get('forms', [])
+                
+                for i, form in enumerate(forms):
+                    field_info = self._extract_enhanced_field_info(form, i)
+                    if field_info:
+                        # Try to enhance the question text using page content
+                        enhanced_question = self._enhance_question_text_with_page_content(
+                            field_info, page_info
+                        )
+                        field_info['question_text'] = enhanced_question
+                        form_fields.append(field_info)
+            
+            # Extract from markdown content
+            if 'markdown_content' in page_info and not form_fields:
+                markdown_fields = self._extract_from_markdown(page_info['markdown_content'])
+                form_fields.extend(markdown_fields)
+            
+            log_step(f"🔍 Detailed analysis extracted {len(form_fields)} fields", symbol="📊")
             return form_fields
             
         except Exception as e:
-            log_error("Failed to extract from markdown", e)
+            log_error("Failed to get detailed form info", e)
             return []
 
 def build_browser_agent_input(instruction: str, browser_state: Dict[str, Any] = None) -> Dict[str, Any]:
